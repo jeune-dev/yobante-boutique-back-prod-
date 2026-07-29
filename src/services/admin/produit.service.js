@@ -19,7 +19,7 @@ async function _sendProduitEmail(vendeurId, sujet, html) {
 }
 const { generateUniqueSlug } = require('../../utils/slugify');
 const paginate = require('../../utils/paginate');
-const { uploadImage, deleteImage } = require('../upload.service');
+const { uploadImage, deleteImage } = require('../r2.service');
 const { STATUT_VALIDATION_PRODUIT } = require('../../constants');
 const NotificationService = require('../notification');
 

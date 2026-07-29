@@ -2,7 +2,7 @@
 // services/admin/banniere.service.js
 // ─────────────────────────────────────────────────────────────
 const { Banniere, Categorie, Produit, BanniereProduit } = require('../../models');
-const { uploadImage, deleteImage } = require('../upload.service');
+const { uploadImage, deleteImage } = require('../r2.service');
 
 class BanniereService {
   static async getAll() {

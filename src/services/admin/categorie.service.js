@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────
 const { Categorie, Produit } = require('../../models');
 const { generateUniqueSlug } = require('../../utils/slugify');
-const { uploadImage, deleteImage } = require('../upload.service');
+const { uploadImage, deleteImage } = require('../r2.service');
 
 class GestionCategorieService {
   static async createCategorie({ nom, description, image, parentId }, file = null) {

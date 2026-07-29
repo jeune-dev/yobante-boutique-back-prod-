@@ -6,7 +6,7 @@
 // visibles dans l'application. Ils sont ordonnés par `ordre`.
 // ─────────────────────────────────────────────────────────────
 const { BlocPromo } = require('../../models');
-const { uploadImage, deleteImage } = require('../upload.service');
+const { uploadImage, deleteImage } = require('../r2.service');
 const { SECTION_PROMOTION } = require('../../constants');
 
 const SECTIONS = Object.values(SECTION_PROMOTION);

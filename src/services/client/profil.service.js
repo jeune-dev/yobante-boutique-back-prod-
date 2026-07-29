@@ -2,7 +2,7 @@
 // services/client/profil.service.js
 // ─────────────────────────────────────────────────────────────
 const { User, Adresse, Commande, sequelize } = require('../../models');
-const { uploadImage, deleteImage } = require('../upload.service');
+const { uploadImage, deleteImage } = require('../r2.service');
 
 const MAX_ADRESSES = 5;
 

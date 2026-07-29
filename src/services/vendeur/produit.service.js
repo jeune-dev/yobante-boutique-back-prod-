@@ -2,7 +2,7 @@ const { Op } = require('sequelize');
 const { Produit, Categorie, Avis, sequelize } = require('../../models');
 const { generateUniqueSlug, createWithUniqueSlug } = require('../../utils/slugify');
 const paginate = require('../../utils/paginate');
-const { uploadImage, deleteImage } = require('../upload.service');
+const { uploadImage, deleteImage } = require('../r2.service');
 const { STATUT_VALIDATION_PRODUIT } = require('../../constants');
 
 /**

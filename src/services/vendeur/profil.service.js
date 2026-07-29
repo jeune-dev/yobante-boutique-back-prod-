@@ -2,7 +2,7 @@
 // services/vendeur/profil.service.js
 // ─────────────────────────────────────────────────────────────
 const { User, ProfilVendeur } = require('../../models');
-const { uploadImage } = require('../upload.service');
+const { uploadImage } = require('../r2.service');
 
 class VendeurProfilService {
   static async getProfil(userId) {

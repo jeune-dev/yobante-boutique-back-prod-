@@ -19,7 +19,7 @@ const path = require('path');
 
 const sequelize = require('../config/db');
 const { BlocPromo, Banniere } = require('../models');
-const { uploadImage } = require('../services/upload.service');
+const { uploadImage } = require('../services/r2.service');
 const { SECTION_PROMOTION } = require('../constants');
 const logger = require('../config/logger');
 
