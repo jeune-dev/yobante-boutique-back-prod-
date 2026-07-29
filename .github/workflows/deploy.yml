@@ -1,12 +1,13 @@
-name: Deploy Yobante Boutique API
+name: Deploy to VPS
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
   deploy:
-    name: Deploy to VPS
+    name: Deploy
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -32,13 +33,30 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          command_timeout: 20m
+          # Le build Docker (apt + npm ci pour Sharp/canvas) dépasse
+          # à lui seul les 10 minutes par défaut d'appleboy/ssh-action, ce qui
+          # coupe la connexion SSH avant même `docker compose up -d` — d'où le
+          # "Run Command Timeout" alors que l'image finit de se construire.
+          command_timeout: "30m"
           script: |
             set -e
-            cd ${{ secrets.PROJECT_PATH }}
+            cd /var/www/yobante-api
+
+            # Récupérer le nouveau code — `set -e` fait échouer tout le
+            # déploiement si le pull échoue (ex: problème d'authentification),
+            # au lieu de continuer silencieusement avec l'ancien code.
+            # --rebase : le VPS peut avoir des commits locaux (ex: config
+            # docker-compose spécifique à cette machine, jamais poussés) —
+            # un pull classique diverge dès que GitHub avance, --rebase les
+            # rejoue proprement par-dessus à chaque déploiement.
             git pull --rebase origin main
+
+            # Rebuilder et relancer uniquement le backend (PostgreSQL reste intact)
             docker compose -f docker-compose.prod.yml up -d --build backend
-            docker image prune -f
-            sleep 5
-            curl -sf http://localhost:5000/health || (echo "Health check échoué" && exit 1)
-            echo "✔ Déploiement réussi"
+
+            # Lancer les nouvelles migrations si besoin
+            docker compose -f docker-compose.prod.yml exec -T backend npm run migrate
+
+            # Vérifier que le backend est healthy
+            sleep 10
+            curl -f http://localhost:5000/health || exit 1

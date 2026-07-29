@@ -1,0 +1,26 @@
+# PostgreSQL Initialization Scripts
+
+Les fichiers SQL placés dans ce dossier seront exécutés automatiquement par PostgreSQL
+lors du premier lancement du conteneur (voir docker-compose.prod.yml).
+
+## Exemples de scripts :
+
+### 1. Créer des extensions PostgreSQL
+```sql
+-- init-extensions.sql
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS uuid-ossp;
+```
+
+### 2. Créer des utilisateurs/rôles
+```sql
+-- init-roles.sql
+CREATE USER yobante_app WITH PASSWORD 'password';
+GRANT CONNECT ON DATABASE yobante TO yobante_app;
+```
+
+## Notes:
+- Les fichiers .sql sont exécutés dans l'ordre alphabétique
+- Cela s'exécute UNE SEULE FOIS au premier lancement du conteneur
+- Pour les migrations ultérieures, utiliser : `npm run migrate`
+- Les changements de schéma doivent être versionnés dans `src/migrations/`

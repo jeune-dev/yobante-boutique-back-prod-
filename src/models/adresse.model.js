@@ -57,7 +57,11 @@ const Adresse = sequelize.define(
   {
     timestamps: true,
     tableName: 'adresses',
-    indexes: [{ fields: ['userId'] }, { fields: ['userId', 'isDefault'] }],
+    indexes: [
+      { fields: ['userId'] },
+      { fields: ['userId', 'isDefault'] },
+      { fields: ['isDefault'] }, // ✅ PERF: Index sur isDefault
+    ],
   }
 );
 

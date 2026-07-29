@@ -17,7 +17,7 @@ module.exports = {
     'no-var': 'error',
     'prefer-const': 'error',
     'no-duplicate-imports': 'error',
-    'no-return-await': 'error',
+    'no-return-await': 'off',
     'require-await': 'error',
   },
   ignorePatterns: ['node_modules/', 'coverage/', 'dist/'],

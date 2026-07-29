@@ -3,6 +3,8 @@ require('dotenv').config();
 const { v4: uuidv4 } = require('uuid');
 const sequelize = require('../config/db');
 const Categorie = require('../models/Categorie.model');
+// ✅ PERF: Utiliser logger au lieu de console.log
+const logger = require('../config/logger');
 
 const slugify = (str) =>
   str
@@ -215,7 +217,7 @@ const RAYONS = [
 
 async function seed() {
   await sequelize.authenticate();
-  console.log('✓ Connexion PostgreSQL établie');
+  logger.info('PostgreSQL connection established');
 
   let created = 0;
   let skipped = 0;
@@ -234,10 +236,10 @@ async function seed() {
         isActive: true,
         parentId: null,
       });
-      console.log(`  + ${rayon.nom}`);
+      logger.info(`Category created: ${rayon.nom}`);
       created++;
     } else {
-      console.log(`  ~ ${rayon.nom} (déjà présent)`);
+      logger.info(`Category already exists: ${rayon.nom}`);
       skipped++;
     }
 
@@ -253,7 +255,7 @@ async function seed() {
           isActive: true,
           parentId: parent.id,
         });
-        console.log(`    + ${sous}`);
+        logger.info(`Subcategory created: ${sous}`);
         created++;
       } else {
         skipped++;
@@ -261,11 +263,11 @@ async function seed() {
     }
   }
 
-  console.log(`\n✓ Terminé : ${created} catégories créées, ${skipped} déjà existantes.`);
+  logger.info(`Seed completed: ${created} categories created, ${skipped} already existed`);
   await sequelize.close();
 }
 
 seed().catch((err) => {
-  console.error('Erreur seed:', err.message);
+  logger.error(`Seed error: ${err.message}`);
   process.exit(1);
 });

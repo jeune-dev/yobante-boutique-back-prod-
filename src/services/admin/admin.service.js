@@ -60,7 +60,11 @@ class GestionAdminService {
   }
 
   static async supprimerAdmin(id) {
-    const admin = await User.findOne({ where: { id, role: 'ADMIN' } });
+    // ✅ SÉCURITÉ: Exclure password depuis la DB
+    const admin = await User.findOne({
+      where: { id, role: 'ADMIN' },
+      attributes: { exclude: ['password'] },
+    });
     if (!admin) {
       return { success: false, message: 'Admin introuvable' };
     }
@@ -70,7 +74,11 @@ class GestionAdminService {
   }
 
   static async modifierAdmin(id, { nom, prenom, telephone }) {
-    const admin = await User.findOne({ where: { id, role: 'ADMIN' } });
+    // ✅ SÉCURITÉ: Exclure password depuis la DB
+    const admin = await User.findOne({
+      where: { id, role: 'ADMIN' },
+      attributes: { exclude: ['password'] },
+    });
     if (!admin) {
       return { success: false, message: 'Admin introuvable' };
     }
@@ -80,7 +88,11 @@ class GestionAdminService {
   }
 
   static async toggleActivationAdmin(id) {
-    const admin = await User.findOne({ where: { id, role: 'ADMIN' } });
+    // ✅ SÉCURITÉ: Exclure password depuis la DB
+    const admin = await User.findOne({
+      where: { id, role: 'ADMIN' },
+      attributes: { exclude: ['password'] },
+    });
     if (!admin) {
       return { success: false, message: 'Admin introuvable' };
     }

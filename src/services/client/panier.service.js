@@ -1,4 +1,3 @@
-const { Op } = require('sequelize');
 const { Panier, Produit, FraisLivraison, sequelize } = require('../../models');
 const { FRAIS_LIVRAISON_DEFAUT } = require('../../constants');
 
@@ -11,12 +10,17 @@ async function _getFraisLivraison(ville) {
 }
 
 class PanierService {
+  // ✅ PERF: Paralléliser les requêtes indépendantes
   static async _buildPanier(userId, ville) {
-    const items = await Panier.findAll({
-      where: { userId },
-      include: [{ model: Produit, as: 'produit' }],
-      order: [['createdAt', 'ASC']],
-    });
+    // Récupérer le panier ET les frais en parallèle
+    const [items, fraisLivraison] = await Promise.all([
+      Panier.findAll({
+        where: { userId },
+        include: [{ model: Produit, as: 'produit' }],
+        order: [['createdAt', 'ASC']],
+      }),
+      _getFraisLivraison(ville),
+    ]);
 
     const lignes = items.map((item) => ({
       id: item.id,
@@ -26,7 +30,6 @@ class PanierService {
     }));
 
     const sousTotal = lignes.reduce((sum, l) => sum + l.sousTotal, 0);
-    const fraisLivraison = lignes.length ? await _getFraisLivraison(ville) : 0;
 
     return { items: lignes, sousTotal, fraisLivraison, total: sousTotal + fraisLivraison };
   }
@@ -53,7 +56,7 @@ class PanierService {
     const t = await sequelize.transaction();
     try {
       // findOrCreate : si deux requêtes arrivent en même temps, l'une crée et l'autre trouve
-      const [ligne, created] = await Panier.findOrCreate({
+      const [ligne, _created] = await Panier.findOrCreate({
         where: { userId, produitId },
         defaults: { userId, produitId, quantite: 0 },
         transaction: t,

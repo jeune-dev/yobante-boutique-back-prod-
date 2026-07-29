@@ -4,13 +4,25 @@
 const cloudinary = require('../config/cloudinary');
 const logger = require('../utils/logger');
 
+// ✅ PERF: Upload avec timeout (30 secondes)
 function uploadImage(buffer, originalname, folder = 'yobante') {
   return new Promise((resolve, reject) => {
+    // Timeout après 30 secondes
+    const timeout = setTimeout(() => {
+      stream.destroy();
+      reject(new Error('Cloudinary upload timeout après 30 secondes'));
+    }, 30000);
+
     const stream = cloudinary.uploader.upload_stream(
-      { folder, resource_type: 'image' },
+      {
+        folder,
+        resource_type: 'image',
+        timeout: 30000,
+      },
       (error, result) => {
+        clearTimeout(timeout);
         if (error) {
-          logger.error('[upload] Échec upload Cloudinary', {
+          logger.error('[upload] Cloudinary upload failed', {
             originalname,
             folder,
             error: error.message,

@@ -72,6 +72,8 @@ const Commande = sequelize.define(
       { fields: ['adresseId'] },
       { fields: ['statut'] },
       { unique: true, fields: ['reference'] },
+      { fields: ['createdAt'] }, // ✅ PERF: Index pour filtres temporels
+      { fields: ['createdAt', 'statut'] }, // ✅ PERF: Index composite pour dashboards
     ],
   }
 );

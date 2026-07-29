@@ -43,9 +43,9 @@ async function seedRayons() {
 
     if (cree) {
       rayonsCrees++;
-      console.log(`   rayon créé : ${definition.nom}`);
+      logger.info(`Rayon created: ${definition.nom}`);
     } else {
-      console.log(`   déjà présent : ${definition.nom}`);
+      logger.info(`Rayon already exists: ${definition.nom}`);
     }
 
     for (const nomSousRayon of definition.sousRayons) {
@@ -79,22 +79,21 @@ if (require.main === module) {
   sequelize
     .authenticate()
     .then(() => {
-      console.log('Rayons');
+      logger.info('Seeding rayons');
       return seedRayons();
     })
     .then(async ({ rayonsCrees, sousRayonsCrees }) => {
       const totalRayons = await Rayon.count();
       const totalSous = await SousRayon.count();
-      console.log(
-        `\nTerminé — ${rayonsCrees} rayon(s) et ${sousRayonsCrees} sous-rayon(s) créés.` +
-          `\nEn base : ${totalRayons} rayons, ${totalSous} sous-rayons.`
+      logger.info(
+        `Seed completed — ${rayonsCrees} rayon(s) and ${sousRayonsCrees} sous-rayon(s) created. ` +
+          `In database: ${totalRayons} rayons, ${totalSous} sous-rayons.`
       );
       await sequelize.close();
       process.exit(0);
     })
     .catch(async (err) => {
-      logger.error('Seed des rayons échoué', { error: err.message });
-      console.error('\nÉchec :', err.message);
+      logger.error('Seed rayons failed', { error: err.message });
       await sequelize.close();
       process.exit(1);
     });

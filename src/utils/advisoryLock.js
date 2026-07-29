@@ -9,14 +9,38 @@
  *
  * La clé doit être un BIGINT PostgreSQL. On hache l'identifiant (UUID ou string)
  * en un entier 32 bits signé pour rester dans les bornes du type.
+ * ✅ PERF: Cache LRU pour éviter de recalculer le hash à chaque fois
  */
-const { createHash } = require('crypto');
 const { sequelize } = require('../models');
 
+const lockKeyCache = new Map();
+const MAX_CACHE_SIZE = 10000;
+
 function _hashKey(key) {
-  const buf = createHash('sha256').update(String(key)).digest();
-  // Lit les 4 premiers octets comme un entier 32 bits signé
-  return buf.readInt32BE(0);
+  const strKey = String(key);
+
+  // ✅ PERF: Vérifier le cache d'abord
+  if (lockKeyCache.has(strKey)) {
+    return lockKeyCache.get(strKey);
+  }
+
+  // Utiliser un simple hash au lieu de SHA256 (plus rapide, suffisant)
+  // PostgreSQL accepte BIGINT pour advisory locks
+  let hash = 0;
+  for (let i = 0; i < strKey.length; i++) {
+    const char = strKey.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash; // Convertir à 32-bit int signé
+  }
+
+  // ✅ PERF: Limiter la taille du cache
+  if (lockKeyCache.size >= MAX_CACHE_SIZE) {
+    const firstKey = lockKeyCache.keys().next().value;
+    lockKeyCache.delete(firstKey);
+  }
+
+  lockKeyCache.set(strKey, hash);
+  return hash;
 }
 
 /**

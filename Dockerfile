@@ -1,31 +1,59 @@
-# ── Stage 1 : builder ─────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+# ============================================================
+#  Yobante Boutique — Dockerfile multi-stage (production)
+#  Stage 1 : deps    → installe uniquement les dépendances de prod
+#  Stage 2 : runner  → image finale légère
+# ============================================================
+
+# ── Stage 1 : installation des dépendances ───────────────────────────────────
+FROM node:22-slim AS deps
 
 WORKDIR /app
 
+# Copier les manifestes en premier pour maximiser le cache Docker
 COPY package*.json ./
-RUN npm ci --only=production --ignore-scripts && npm cache clean --force
 
-COPY . .
+# Dépendances système requises pour les modules natifs (sharp, etc.)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3 \
+        make \
+        g++ \
+        libvips-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# ── Stage 2 : runner ──────────────────────────────────────────────────────────
-FROM node:20-alpine AS runner
+# Installer uniquement les dépendances de production
+RUN npm ci --omit=dev --no-audit --no-fund
+
+
+# ── Stage 2 : image finale ────────────────────────────────────────────────────
+FROM node:22-slim AS runner
+
+# Dépendances runtime (pas de build tools)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        # Sharp / libvips (runtime uniquement)
+        libvips \
+        # curl pour le HEALTHCHECK
+        curl \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Crée un utilisateur non-root
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+# Copier les dépendances de prod depuis le stage deps
+COPY --from=deps /app/node_modules ./node_modules
 
-# Copie uniquement les fichiers nécessaires depuis le builder
-COPY --from=builder --chown=appuser:appgroup /app/node_modules ./node_modules
-COPY --from=builder --chown=appuser:appgroup /app/src ./src
-COPY --from=builder --chown=appuser:appgroup /app/package.json ./
+# Copier le code source
+COPY --chown=node:node . .
 
-USER appuser
+# Créer les répertoires nécessaires avec les bonnes permissions
+RUN mkdir -p logs uploads \
+    && chown -R node:node /app
+
+# Basculer vers l'utilisateur non-root (uid 1000, inclus dans node:slim)
+USER node
 
 EXPOSE 5000
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-  CMD wget -qO- http://localhost:5000/health || exit 1
+# Healthcheck : interroge /health toutes les 30 s
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:5000/health || exit 1
 
 CMD ["node", "src/server.js"]

@@ -1,6 +1,5 @@
 'use strict';
 
-// Contrat asynchrone commun aux fournisseurs — voir simulation.provider.js.
 /* eslint-disable require-await */
 
 /**

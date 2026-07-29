@@ -52,14 +52,20 @@ class GestionUserService {
   }
 
   static async activerUser(id) {
-    const user = await User.findByPk(id);
+    // ✅ SÉCURITÉ: Exclure password depuis la DB
+    const user = await User.findByPk(id, {
+      attributes: { exclude: ['password'] },
+    });
     if (!user) return { success: false, message: 'Utilisateur introuvable' };
     await user.update({ isActive: true });
     return { success: true, message: 'Utilisateur activé avec succès', user };
   }
 
   static async desactiverUser(id) {
-    const user = await User.findByPk(id);
+    // ✅ SÉCURITÉ: Exclure password depuis la DB
+    const user = await User.findByPk(id, {
+      attributes: { exclude: ['password'] },
+    });
     if (!user) return { success: false, message: 'Utilisateur introuvable' };
     await user.update({ isActive: false });
     return { success: true, message: 'Utilisateur désactivé avec succès', user };
@@ -142,10 +148,63 @@ class GestionUserService {
     return { success: true, message: `Admin ${user.isActive ? 'activé' : 'désactivé'}`, user };
   }
 
+  // ✅ PERF: Streaming export (pas de chargement en mémoire)
+  static async exportUsersStream(res) {
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="clients-${Date.now()}.csv"`);
+
+    // En-têtes CSV
+    res.write('Nom,Prénom,Email,Téléphone,Statut,Vérifié,Date inscription\n');
+
+    let offset = 0;
+    const batchSize = 1000; // Traiter 1000 utilisateurs à la fois
+
+    try {
+      let hasMore = true;
+      while (hasMore) {
+        const clients = await User.findAll({
+          where: { role: ROLES.CLIENT },
+          attributes: [
+            'nom',
+            'prenom',
+            'email',
+            'telephone',
+            'isActive',
+            'isVerified',
+            'createdAt',
+          ],
+          order: [['createdAt', 'DESC']],
+          limit: batchSize,
+          offset,
+          raw: true,
+        });
+
+        if (clients.length === 0) {
+          hasMore = false;
+          break;
+        }
+
+        // Écrire chaque ligne dans le stream
+        for (const c of clients) {
+          const line = `"${c.nom}","${c.prenom}","${c.email}","${c.telephone || ''}","${c.isActive ? 'actif' : 'inactif'}","${c.isVerified ? 'oui' : 'non'}","${c.createdAt.toISOString().slice(0, 10)}"\n`;
+          res.write(line);
+        }
+
+        offset += batchSize;
+      }
+
+      res.end();
+    } catch (err) {
+      res.status(500).json({ success: false, message: "Erreur lors de l'export" });
+    }
+  }
+
+  // Ancienne méthode (gardée pour rétrocompatibilité, mais LENTE)
   static async exportUsers() {
     const clients = await User.findAll({
       where: { role: ROLES.CLIENT },
       order: [['createdAt', 'DESC']],
+      limit: 10000, // Limite pour éviter les OOM
     });
 
     const rows = clients.map((c) => ({

@@ -39,7 +39,7 @@ const Paiement = sequelize.define(
     fournisseur: {
       type: DataTypes.STRING(50),
       allowNull: true,
-      comment: 'Fournisseur ayant traité le paiement (simulation, wave…)',
+      comment: 'Fournisseur ayant traité le paiement (wave, orange_money, cash_livraison)',
     },
     urlPaiement: {
       type: DataTypes.TEXT,
@@ -50,6 +50,29 @@ const Paiement = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: true,
       comment: 'Motif du dernier échec, affiché au client pour réessayer',
+    },
+    montantPaye: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      defaultValue: 0,
+      comment: 'Montant réellement payé (peut être partiel)',
+    },
+    tentatives: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+      comment: 'Nombre de tentatives de paiement',
+    },
+    codeErreur: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      comment: 'Code erreur retourné par le fournisseur',
+    },
+    montantRemboursePaye: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      defaultValue: 0,
+      comment: 'Montant remboursé réellement',
     },
     payeAt: {
       type: DataTypes.DATE,
@@ -71,6 +94,9 @@ const Paiement = sequelize.define(
       { unique: true, fields: ['commandeId'] },
       { fields: ['userId'] },
       { fields: ['statut'] },
+      { fields: ['createdAt'] },
+      { fields: ['statut', 'createdAt'] },
+      { fields: ['statut', 'montant', 'montantPaye'] }, // ✅ Index pour montants
     ],
   }
 );

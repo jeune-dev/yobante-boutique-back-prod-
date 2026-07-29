@@ -1,83 +1,102 @@
 const rateLimit = require('express-rate-limit');
+const {
+  rateLimitConfig,
+  authenticatedRateLimitConfig,
+  authRateLimitConfig,
+  mutationRateLimitConfig,
+  adminRateLimitConfig,
+  otpEmailRateLimitConfig,
+} = require('../config/security');
 
-const _base = {
+// ── GLOBAL LIMITER ─────────────────────────────────────────────────────────────
+// Filet de sécurité anti-scan/DDoS — 1000 req / 15 min par IP
+const globalLimiter = rateLimit({
+  ...rateLimitConfig,
+  keyGenerator: (req) => req.ip,
+});
+
+// ── AUTHENTICATED LIMITER ─────────────────────────────────────────────────────
+// 300 req / 15 min par userId — endpoints authentifiés
+const authenticatedLimiter = rateLimit({
+  ...authenticatedRateLimitConfig,
+});
+
+// ── AUTH LIMITER (Brute Force Protection) ───────────────────────────────────────
+// 5 tentatives / 15 min — login, register, refresh
+const authLimiter = rateLimit({
+  ...authRateLimitConfig,
+  keyGenerator: (req) => req.ip,
+  skipSuccessfulRequests: true,
+});
+
+// ── REGISTER LIMITER ──────────────────────────────────────────────────────────────
+// 5 inscriptions / heure par IP — anti-spam comptes
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => req.ip,
-};
-
-// 1000 req / 15 min par IP en dev, 100 en prod
-const globalLimiter = rateLimit({
-  ..._base,
-  windowMs: 15 * 60 * 1000,
-  max: process.env.NODE_ENV === 'production' ? 100 : 1000,
-});
-
-// 10 tentatives / 15 min — login + refresh (brute force)
-const authLimiter = rateLimit({
-  ..._base,
-  windowMs: 15 * 60 * 1000,
-  max: 10,
-  skipSuccessfulRequests: true,
-  message: { success: false, message: 'Trop de tentatives. Réessayez dans 15 minutes.' },
-});
-
-// 5 inscriptions / heure par IP — anti-spam comptes
-const registerLimiter = rateLimit({
-  ..._base,
-  windowMs: 60 * 60 * 1000,
-  max: 5,
   message: {
     success: false,
     message: 'Trop de créations de compte depuis cette adresse IP. Réessayez dans 1 heure.',
   },
 });
 
+// ── FORGOT PASSWORD LIMITER ────────────────────────────────────────────────────
 // 3 demandes de reset / heure par IP
 const forgotPasswordLimiter = rateLimit({
-  ..._base,
   windowMs: 60 * 60 * 1000,
   max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.ip,
   message: {
     success: false,
     message: 'Trop de demandes de réinitialisation. Réessayez dans 1 heure.',
   },
 });
 
-// Upload : 20 req / 10 min (images)
+// ── UPLOAD LIMITER ────────────────────────────────────────────────────────────────
+// 20 req / 10 min — uploads images
 const uploadLimiter = rateLimit({
-  ..._base,
   windowMs: 10 * 60 * 1000,
   max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id || req.ip,
   message: { success: false, message: "Trop d'uploads. Réessayez dans 10 minutes." },
 });
 
+// ── OTP EMAIL LIMITER ─────────────────────────────────────────────────────────────
 // 3 envois d'OTP / 15 min par email — anti-spam email
 const otpEmailLimiter = rateLimit({
-  standardHeaders: true,
-  legacyHeaders: false,
-  windowMs: 15 * 60 * 1000,
-  max: 3,
+  ...otpEmailRateLimitConfig,
   keyGenerator: (req) => req.body?.email || req.ip,
-  message: { success: false, message: 'Trop de codes envoyés. Réessayez dans 15 minutes.' },
 });
 
-// 300 req / 15 min par userId — endpoints authentifiés (dashboard, catalogue, etc.)
-const authenticatedLimiter = rateLimit({
-  standardHeaders: true,
-  legacyHeaders: false,
-  windowMs: 15 * 60 * 1000,
-  max: 300,
+// ── MUTATION LIMITER (Sensitive Operations) ────────────────────────────────────
+// 20 req / 15 min pour opérations sensibles (modifier profil, changer mdp)
+const mutationLimiter = rateLimit({
+  ...mutationRateLimitConfig,
   keyGenerator: (req) => req.user?.id || req.ip,
-  message: { success: false, message: 'Limite de requêtes atteinte. Réessayez dans 15 minutes.' },
+});
+
+// ── ADMIN LIMITER ────────────────────────────────────────────────────────────────
+// 200 req / 15 min pour routes admin
+const adminLimiter = rateLimit({
+  ...adminRateLimitConfig,
+  keyGenerator: (req) => req.user?.id || req.ip,
 });
 
 module.exports = {
   globalLimiter,
   authLimiter,
+  authenticatedLimiter,
   registerLimiter,
   forgotPasswordLimiter,
   uploadLimiter,
   otpEmailLimiter,
-  authenticatedLimiter,
+  mutationLimiter,
+  adminLimiter,
 };

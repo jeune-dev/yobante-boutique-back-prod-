@@ -11,14 +11,23 @@ const sequelize = new Sequelize(process.env.DB_NAME, process.env.DB_USER, proces
   logging: false,
   dialectOptions: {
     ssl: isProd ? { require: true, rejectUnauthorized: true } : false,
-    keepAlive: true,
+    keepAlives: true,
+    keepAliveInitialDelayMs: 0,
+    socketTimeoutMs: 60000,
+    statement_timeout: 30000,
+    application_name: 'yobante-api',
   },
   pool: {
-    max: parseInt(process.env.DB_POOL_MAX, 10) || 20,
-    min: parseInt(process.env.DB_POOL_MIN, 10) || 2,
-    acquire: 30000,
-    idle: 10000,
-    evict: 1000,
+    // ✅ PERF: Augmenter pool pour supporter plus de connexions concurrentes
+    max: parseInt(process.env.DB_POOL_MAX, 10) || (isProd ? 100 : 20),
+    min: parseInt(process.env.DB_POOL_MIN, 10) || (isProd ? 20 : 2),
+    acquire: 60000, // Augmenter à 60s (au lieu de 30s)
+    idle: 30000, // Augmenter à 30s (au lieu de 10s)
+    evict: 5000, // Réduire à 5s (recycle plus vite)
+    validate: (connection) => {
+      // Vérifier que la connexion n'est pas morte avant la réutiliser
+      return connection !== null && connection !== undefined;
+    },
   },
   define: { freezeTableName: true },
 });

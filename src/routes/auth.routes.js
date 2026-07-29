@@ -5,6 +5,7 @@ const {
   authLimiter,
   registerLimiter,
   forgotPasswordLimiter,
+  mutationLimiter,
 } = require('../middlewares/rateLimit.middleware');
 const validate = require('../middlewares/validate.middleware');
 const {
@@ -29,7 +30,13 @@ router.post(
   ctrl.forgotPassword
 );
 router.post('/reset-password', authLimiter, validate(resetPasswordSchema), ctrl.resetPassword);
-router.put('/change-password', auth, validate(changePasswordSchema), ctrl.changePassword);
-router.post('/changer-premier-mdp', auth, ctrl.changerPremierMotDePasse);
+router.put(
+  '/change-password',
+  mutationLimiter,
+  auth,
+  validate(changePasswordSchema),
+  ctrl.changePassword
+);
+router.post('/changer-premier-mdp', mutationLimiter, auth, ctrl.changerPremierMotDePasse);
 
 module.exports = router;

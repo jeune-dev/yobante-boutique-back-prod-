@@ -7,6 +7,7 @@ const logger = require('../config/logger');
 // désactiverait silencieusement le masquage des messages en production.
 const enProd = () => process.env.NODE_ENV === 'production';
 
+// ── REDACTION DES DONNÉES SENSIBLES ────────────────────────────────────────────
 const CHAMPS_SENSIBLES = [
   'password',
   'oldPassword',
@@ -15,13 +16,26 @@ const CHAMPS_SENSIBLES = [
   'refreshToken',
   'code',
   'otp',
+  'apiKey',
+  'secret',
+  'pin',
+  'cvv',
+  'cardNumber',
 ];
+
+// ✅ PERF: Redaction optimisée sans deep clone JSON coûteux
 function redactBody(body) {
   if (!body || typeof body !== 'object') return body;
-  const clean = { ...body };
-  for (const champ of CHAMPS_SENSIBLES) {
-    if (champ in clean) clean[champ] = '[REDACTED]';
+
+  // Shallow copy + selective redaction (au lieu de deep clone)
+  const clean = Object.assign({}, body);
+
+  for (const key of Object.keys(clean)) {
+    if (CHAMPS_SENSIBLES.some((champ) => key.toLowerCase().includes(champ))) {
+      clean[key] = '[REDACTED]';
+    }
   }
+
   return clean;
 }
 

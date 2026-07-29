@@ -7,8 +7,19 @@ const { uploadImage, deleteImage } = require('../upload.service');
 const MAX_ADRESSES = 5;
 
 class ProfilService {
+  // ✅ PERF: Eager loading pour éviter N+1 queries
   static async getProfil(userId) {
-    const user = await User.findByPk(userId, { attributes: { exclude: ['password'] } });
+    const user = await User.findByPk(userId, {
+      attributes: { exclude: ['password'] },
+      include: [
+        {
+          association: 'adresses',
+          attributes: ['id', 'rue', 'ville', 'isDefault'],
+          where: { userId },
+          required: false,
+        },
+      ],
+    });
     if (!user) {
       return { success: false, message: 'Utilisateur introuvable' };
     }

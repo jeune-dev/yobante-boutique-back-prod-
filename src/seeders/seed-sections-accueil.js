@@ -116,34 +116,34 @@ async function televerser(dossier, fichier, sousDossier) {
 
   const chemin = path.join(dossier, fichier);
   if (!fs.existsSync(chemin)) {
-    console.log(`   visuel introuvable, ignoré : ${fichier}`);
+    logger.warn(`Visual not found, ignored: ${fichier}`);
     return null;
   }
 
   try {
     const url = await uploadImage(fs.readFileSync(chemin), fichier, sousDossier);
-    console.log(`   téléversé : ${fichier}`);
+    logger.info(`Visual uploaded: ${fichier}`);
     return url;
   } catch (err) {
     uploadsEchoues++;
-    console.log(`   téléversement refusé (${err.message}) : ${fichier}`);
+    logger.warn(`Upload refused (${err.message}): ${fichier}`);
     return null;
   }
 }
 
 async function seedSectionsAccueil(dossierAssets = ASSETS_PAR_DEFAUT) {
   if (!fs.existsSync(dossierAssets)) {
-    throw new Error(`Dossier de visuels introuvable : ${dossierAssets}`);
+    throw new Error(`Visual folder not found: ${dossierAssets}`);
   }
 
-  console.log(`Visuels lus depuis : ${dossierAssets}\n`);
+  logger.info(`Loading visuals from: ${dossierAssets}`);
 
   // ── Bannières ───────────────────────────────────────────────────────────
-  console.log('Bannières');
+  logger.info('Seeding banners');
   for (const banniere of BANNIERES) {
     const existante = await Banniere.findOne({ where: { titre: banniere.titre } });
     if (existante) {
-      console.log(`   déjà présente : ${banniere.titre}`);
+      logger.info(`Banner already exists: ${banniere.titre}`);
       continue;
     }
 
@@ -151,7 +151,7 @@ async function seedSectionsAccueil(dossierAssets = ASSETS_PAR_DEFAUT) {
     // Une bannière sans image n'a pas de sens : le mobile n'aurait rien à
     // afficher. On la crée seulement si le visuel est passé.
     if (!image) {
-      console.log(`   ignorée faute de visuel : ${banniere.titre}`);
+      logger.info(`Banner skipped (no visual): ${banniere.titre}`);
       continue;
     }
 
@@ -161,17 +161,17 @@ async function seedSectionsAccueil(dossierAssets = ASSETS_PAR_DEFAUT) {
       ordre: banniere.ordre,
       isActive: true,
     });
-    console.log(`   créée : ${banniere.titre}`);
+    logger.info(`Banner created: ${banniere.titre}`);
   }
 
   // ── Sous-sections ───────────────────────────────────────────────────────
-  console.log('\nSous-sections');
+  logger.info('Seeding promotional blocks');
   for (const bloc of BLOCS) {
     const existant = await BlocPromo.findOne({
       where: { section: bloc.section, titre: bloc.titre },
     });
     if (existant) {
-      console.log(`   déjà présente : ${bloc.section} / ${bloc.titre}`);
+      logger.info(`Block already exists: ${bloc.section} / ${bloc.titre}`);
       continue;
     }
 
@@ -185,7 +185,7 @@ async function seedSectionsAccueil(dossierAssets = ASSETS_PAR_DEFAUT) {
       ordre: bloc.ordre,
       isActive: true,
     });
-    console.log(`   créée : ${bloc.section} / ${bloc.titre}`);
+    logger.info(`Block created: ${bloc.section} / ${bloc.titre}`);
   }
 }
 
@@ -200,20 +200,21 @@ if (require.main === module) {
     .then(async () => {
       const blocs = await BlocPromo.count();
       const bannieres = await Banniere.count();
-      console.log(`\nTerminé — ${bannieres} bannière(s), ${blocs} sous-section(s) en base.`);
+      logger.info(
+        `Seed completed — ${bannieres} banner(s), ${blocs} promotional block(s) in database`
+      );
       if (uploadsEchoues > 0) {
-        console.log(
-          `\n${uploadsEchoues} visuel(s) non téléversé(s) : Cloudinary a refusé les identifiants.\n` +
-            'Les sous-sections existent sans image ; déposez-les depuis le dashboard,\n' +
-            'ou relancez ce script dans un environnement où Cloudinary est configuré.'
+        logger.warn(
+          `${uploadsEchoues} visual(s) not uploaded: Cloudinary rejected credentials. ` +
+            'Blocks exist without images; upload them from the dashboard or rerun this script ' +
+            'in an environment where Cloudinary is configured.'
         );
       }
       await sequelize.close();
       process.exit(0);
     })
     .catch(async (err) => {
-      logger.error('Seed des sections échoué', { error: err.message });
-      console.error('\nÉchec :', err.message);
+      logger.error('Sections seed failed', { error: err.message });
       await sequelize.close();
       process.exit(1);
     });

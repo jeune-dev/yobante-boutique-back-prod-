@@ -1,33 +1,15 @@
-const jwt = require('jsonwebtoken');
-const { jwtConfig } = require('../config/security');
+const JWTUtils = require('../utils/jwtUtils');
 const { AppError } = require('../errors/AppError');
+const asyncHandler = require('../utils/asyncHandler');
 
-/**
- * Authentifie via JWT sans toucher la base de données.
- * Le payload contient { id, role, isActive } signé — on fait confiance à la signature.
- * Fenêtre de risque max si un compte est désactivé = durée du token (JWT_EXPIRES_IN, défaut 1h).
- */
-const authMiddleware = (req, _res, next) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return next(new AppError('Token manquant ou invalide', 401));
-  }
-
-  const token = authHeader.split(' ')[1];
-  let decoded;
+const authMiddleware = asyncHandler(async (req, _res, next) => {
   try {
-    decoded = jwt.verify(token, jwtConfig.secret);
+    const user = await JWTUtils.verifyUserFromHeader(req);
+    req.user = user;
+    next();
   } catch (err) {
-    if (err.name === 'TokenExpiredError') return next(new AppError('Token expiré', 401));
-    return next(new AppError('Token invalide', 401));
+    next(err);
   }
-
-  if (!decoded.isActive) {
-    return next(new AppError('Compte désactivé. Contactez le support.', 403));
-  }
-
-  req.user = { id: decoded.id, role: decoded.role, isActive: decoded.isActive };
-  next();
-};
+});
 
 module.exports = authMiddleware;

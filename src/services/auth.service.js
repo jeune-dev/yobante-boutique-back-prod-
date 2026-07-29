@@ -115,7 +115,8 @@ class AuthService {
 
   // -------------------- CONNEXION --------------------
   static async login({ identifiant, password }) {
-    const isEmail = /\S+@\S+\.\S+/.test(identifiant);
+    // ✅ SÉCURITÉ: Simple check sans ReDoS (vrai validation via Joi middleware)
+    const isEmail = identifiant.includes('@');
     const user = await User.findOne({
       where: isEmail ? { email: identifiant.trim().toLowerCase() } : { telephone: identifiant },
     });

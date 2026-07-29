@@ -2,45 +2,41 @@
 
 const logger = require('../../config/logger');
 const { METHODE_PAIEMENT } = require('../../constants');
-const SimulationProvider = require('./providers/simulation.provider');
 const CashProvider = require('./providers/cash.provider');
-const ExterneProvider = require('./providers/externe.provider');
+const WaveProvider = require('./providers/wave.provider');
+const OrangeMoneyProvider = require('./providers/orange.provider');
 
 /**
  * Sélection du fournisseur de paiement.
  *
- * `PAIEMENT_MODE` :
- *   - 'simulation' (défaut) : les méthodes en ligne passent par le fournisseur
- *     de substitution, en attendant les APIs réelles ;
- *   - 'reel' : les méthodes en ligne exigent une intégration effective, et
- *     échouent proprement tant qu'elle n'existe pas.
- *
- * Le paiement à la livraison ne dépend d'aucun tiers : il garde toujours son
- * propre fournisseur, quel que soit le mode.
+ * Fournisseurs:
+ *   - cash_livraison : Paiement à la livraison (pas de tiers)
+ *   - wave : Wave API (Sénégal/Afrique)
+ *   - orange_money : Orange Money API (Afrique francophone)
  */
-const MODE = () => (process.env.PAIEMENT_MODE || 'simulation').toLowerCase();
-
-const estSimulation = () => MODE() === 'simulation';
-
-let alerteEmise = false;
 
 function resoudreFournisseur(methode) {
-  if (methode === METHODE_PAIEMENT.CASH_LIVRAISON) return new CashProvider(methode);
+  try {
+    switch (methode) {
+      case METHODE_PAIEMENT.CASH_LIVRAISON:
+        return new CashProvider(methode);
 
-  if (estSimulation()) {
-    // Un encaissement simulé en production laisserait croire à un paiement
-    // réel : on le signale à chaque démarrage, une seule fois.
-    if (process.env.NODE_ENV === 'production' && !alerteEmise) {
-      alerteEmise = true;
-      logger.warn(
-        'PAIEMENT_MODE=simulation en production : aucun encaissement réel ' +
-          "n'est effectué pour les paiements en ligne."
-      );
+      case METHODE_PAIEMENT.WAVE:
+        return new WaveProvider(methode);
+
+      case METHODE_PAIEMENT.ORANGE_MONEY:
+        return new OrangeMoneyProvider(methode);
+
+      default:
+        throw new Error(`Méthode de paiement non supportée: ${methode}`);
     }
-    return new SimulationProvider(methode);
+  } catch (error) {
+    logger.error('[Paiement] Erreur résolution fournisseur', {
+      methode,
+      error: error.message,
+    });
+    throw error;
   }
-
-  return new ExterneProvider(methode);
 }
 
-module.exports = { resoudreFournisseur, estSimulation };
+module.exports = { resoudreFournisseur };

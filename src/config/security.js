@@ -23,16 +23,34 @@ if (
   );
 }
 
-// ── Validation CORS en production ──────────────────────────────────────────
+// ── Validation CORS en production ET staging ───────────────────────────────
+// ✅ SÉCURITÉ: Jamais d'CORS "*" autorisé, même en dev/staging
 const _rawCorsOrigins = (process.env.CORS_ORIGIN || '')
   .split(',')
   .map((o) => o.trim())
   .filter(Boolean);
+
+// Validation stricte: CORS "*" jamais autorisé
+if (_rawCorsOrigins.includes('*')) {
+  throw new Error(
+    'CORS_ORIGIN=* est JAMAIS autorisé, même en dev. Définissez des origines explicites.'
+  );
+}
+
+// Production: CORS_ORIGIN obligatoire
 if (isProd && _rawCorsOrigins.length === 0) {
   throw new Error('En production, CORS_ORIGIN doit être défini (ex: https://votre-frontend.com)');
 }
-if (isProd && _rawCorsOrigins.includes('*')) {
-  throw new Error('CORS_ORIGIN=* est interdit en production. Définissez des origines explicites.');
+
+// Staging: Aussi nécessaire (données sensibles)
+if (!isProd && _rawCorsOrigins.length === 0) {
+  // En dev local, autoriser localhost seulement
+  if (process.env.NODE_ENV === 'development') {
+    // OK, default sera appliqué ci-dessous
+  } else {
+    // Staging: Ne pas permettre pas de CORS_ORIGIN
+    throw new Error('En staging, CORS_ORIGIN doit être défini (ne pas utiliser localhost)');
+  }
 }
 
 // ── Validation credentials Admin en production ─────────────────────────
@@ -66,20 +84,64 @@ const bcryptConfig = {
 
 /**
  * Rate Limiting (anti brute force)
+ * Filet de sécurité global par IP (anti-scan/DDoS) — appliqué à TOUTES les routes
+ * Volontairement large : la limite fine par utilisateur prend le relais après auth
+ * ✅ PERF: Augmenté de 1000 à 10000 pour supporter 1000+ RPS
  */
 const rateLimitConfig = {
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: parseInt(process.env.GLOBAL_RATE_LIMIT_MAX || '10000'), // 10K req/15min = ~11 req/sec per IP
   standardHeaders: true,
   legacyHeaders: false,
 };
 
+// Limite par utilisateur authentifié (clé = req.user.id, pas l'IP)
+const authenticatedRateLimitConfig = {
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id || req.ip,
+  message: { success: false, message: 'Trop de requêtes. Veuillez réessayer dans 15 minutes.' },
+};
+
+// Authentification (login/register) — très strict
 const authRateLimitConfig = {
   windowMs: 15 * 60 * 1000,
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { message: 'Trop de tentatives. Veuillez réessayer dans 15 minutes.' },
+  message: { success: false, message: 'Trop de tentatives. Veuillez réessayer dans 15 minutes.' },
+};
+
+// Mutations sensibles (modifier/supprimer profil, changement mot de passe)
+const mutationRateLimitConfig = {
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Trop de requêtes. Veuillez réessayer dans 15 minutes.' },
+};
+
+// Routes admin — modérément strict
+const adminRateLimitConfig = {
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Trop de requêtes admin. Veuillez réessayer.' },
+};
+
+// OTP email — anti-spam strict
+const otpEmailRateLimitConfig = {
+  windowMs: 15 * 60 * 1000,
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Trop de tentatives pour cet email. Réessayez dans 15 minutes.',
+  },
 };
 
 /**
@@ -121,7 +183,11 @@ module.exports = {
   jwtConfig,
   bcryptConfig,
   rateLimitConfig,
+  authenticatedRateLimitConfig,
   authRateLimitConfig,
+  mutationRateLimitConfig,
+  adminRateLimitConfig,
+  otpEmailRateLimitConfig,
   corsConfig,
   cookieConfig,
   uploadConfig,

@@ -8,6 +8,8 @@ require('dotenv').config();
 const { Sequelize, DataTypes } = require('sequelize');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
+// ✅ PERF: Utiliser logger au lieu de console.log
+const logger = require('../config/logger');
 
 // ── Connexion ─────────────────────────────────────────────────────────────────
 const isProd = process.env.NODE_ENV === 'production';
@@ -53,16 +55,16 @@ const ADMIN_PRENOM = 'Yobante';
 
 async function seed() {
   await sequelize.authenticate();
-  console.log('✓ Connexion DB établie');
+  logger.info('DB connection established');
 
   const existing = await User.findOne({ where: { email: ADMIN_EMAIL } });
   if (existing) {
-    console.log(`~ Admin déjà présent : ${ADMIN_EMAIL}`);
+    logger.info(`Admin already exists: ${ADMIN_EMAIL}`);
 
     // Met à jour le rôle si nécessaire
     if (existing.role !== 'ADMIN') {
       await existing.update({ role: 'ADMIN', isActive: true, isVerified: true });
-      console.log('✓ Rôle mis à jour → ADMIN');
+      logger.info('Admin role updated to ADMIN');
     }
     await sequelize.close();
     return;
@@ -80,11 +82,11 @@ async function seed() {
     isVerified: true,
   });
 
-  console.log(`✓ Admin créé : ${ADMIN_EMAIL} / ${ADMIN_PASSWORD}`);
+  logger.info(`Admin created: ${ADMIN_EMAIL}`);
   await sequelize.close();
 }
 
 seed().catch((err) => {
-  console.error('✗ Erreur seed-admin:', err.message);
+  logger.error(`Seed admin error: ${err.message}`);
   process.exit(1);
 });
