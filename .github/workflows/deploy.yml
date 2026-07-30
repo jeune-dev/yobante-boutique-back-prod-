@@ -40,7 +40,7 @@ jobs:
           command_timeout: "30m"
           script: |
             set -e
-            cd /var/www/yobante-api
+            cd /var/www/yobante-boutique-api
 
             # Récupérer le nouveau code — `set -e` fait échouer tout le
             # déploiement si le pull échoue (ex: problème d'authentification),
