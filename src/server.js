@@ -111,10 +111,13 @@ async function applyRuntimeMigrations() {
 async function demarrerWorker() {
   try {
     // ── SYNC DB ────────────────────────────────────────────────────────────────
+    // IMPORTANT: Migrations Sequelize CLI s'exécutent MANUELLEMENT via SSH/deploy.sh
+    // AVANT le démarrage du container. Voir deploy/deploy.sh ligne 47.
     if (isProd) {
       if (estWorkerPrincipal) {
-        // Production: sync({ force: false }) crée les tables manquantes
-        await sequelize.sync({ force: false, alter: true });
+        // Production: sync({ force: false }) crée UNIQUEMENT les tables manquantes
+        // Migrations Sequelize CLI (exécutées via SSH) gèrent les ALTER TABLE explicitement
+        await sequelize.sync({ force: false });
         await applyRuntimeMigrations();
         logger.info('Connexion PostgreSQL établie et tables synchronisées (production)');
       } else {
@@ -122,8 +125,9 @@ async function demarrerWorker() {
         await sequelize.authenticate();
       }
     } else {
-      // Dev: sync({ alter: true }) pour appliquer les modèles localement
-      await sequelize.sync({ alter: true });
+      // Dev: sync({ force: false }) comme la prod — évite les erreurs SQL avec ENUM
+      // Les migrations Sequelize CLI gèrent les ALTER TABLE explicitement
+      await sequelize.sync({ force: false });
       logger.info('Base de données synchronisée (mode développement)');
     }
 

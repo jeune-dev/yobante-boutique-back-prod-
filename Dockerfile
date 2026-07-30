@@ -21,7 +21,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Installer uniquement les dépendances de production
-RUN npm ci --omit=dev --no-audit --no-fund
+# --ignore-scripts évite que husky s'initialise en Docker
+RUN npm ci --omit=dev --no-audit --no-fund --ignore-scripts
 
 
 # ── Stage 2 : image finale ────────────────────────────────────────────────────

@@ -33,7 +33,18 @@ fi
 # 3. Créer les dossiers nécessaires si absents
 mkdir -p logs uploads
 
-# 4. Récupérer les derniers changements
+# 4. Backup base de données AVANT déploiement
+echo "[deploy] Backup base de données..."
+BACKUP_DIR="${APP_DIR}/backups"
+mkdir -p "${BACKUP_DIR}"
+BACKUP_FILE="${BACKUP_DIR}/yobante_$(date '+%Y%m%d_%H%M%S').sql.gz"
+DB_NAME=$(grep '^DB_NAME=' .env | cut -d'=' -f2)
+DB_USER=$(grep '^DB_USER=' .env | cut -d'=' -f2)
+DB_HOST=$(grep '^DB_HOST=' .env | cut -d'=' -f2)
+
+docker compose -f docker-compose.prod.yml exec -T postgres pg_dump -U "${DB_USER}" -h "${DB_HOST}" "${DB_NAME}" | gzip > "${BACKUP_FILE}" 2>/dev/null && echo "[deploy] ✅ Backup créé: ${BACKUP_FILE}" || echo "[deploy] ⚠️  Backup échoué (conteneur peut ne pas être prêt)"
+
+# 5. Récupérer les derniers changements
 echo "[deploy] git pull..."
 git pull --ff-only
 
@@ -43,8 +54,8 @@ if [[ "$MODE" == "docker" ]]; then
     docker compose -f docker-compose.prod.yml pull 2>/dev/null || true
     docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
 
-    echo "[deploy] Lancer les migrations..."
-    docker compose -f docker-compose.prod.yml exec -T backend npm run migrate
+    echo "[deploy] Migrations s'exécutent automatiquement au démarrage..."
+    sleep 10  # Attendre que les migrations se terminent
 
     echo "[deploy] Statut des conteneurs :"
     docker compose -f docker-compose.prod.yml ps

@@ -3,6 +3,7 @@ const { Sequelize } = require('sequelize');
 const logger = require('./logger');
 
 const isProd = process.env.NODE_ENV === 'production';
+const useSSL = process.env.DB_SSL === 'true';
 
 const sequelize = new Sequelize(process.env.DB_NAME, process.env.DB_USER, process.env.DB_PASSWORD, {
   host: process.env.DB_HOST,
@@ -10,7 +11,7 @@ const sequelize = new Sequelize(process.env.DB_NAME, process.env.DB_USER, proces
   dialect: 'postgres',
   logging: false,
   dialectOptions: {
-    ssl: isProd ? { require: true, rejectUnauthorized: true } : false,
+    ssl: useSSL ? { require: true, rejectUnauthorized: false } : false,
     keepAlives: true,
     keepAliveInitialDelayMs: 0,
     socketTimeoutMs: 60000,

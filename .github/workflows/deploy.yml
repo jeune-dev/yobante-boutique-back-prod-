@@ -51,12 +51,14 @@ jobs:
             # rejoue proprement par-dessus à chaque déploiement.
             git pull --rebase origin main
 
-            # Rebuilder et relancer uniquement le backend (PostgreSQL reste intact)
-            docker compose -f docker-compose.prod.yml up -d --build backend
+            # Rebuilder et relancer les services
+            docker compose -f docker-compose.prod.yml up -d --build
 
-            # Lancer les nouvelles migrations si besoin
-            docker compose -f docker-compose.prod.yml exec -T backend npm run migrate
+            # Les migrations s'exécutent automatiquement au démarrage du backend
+            # (voir server.js pour le flux complet: migrations → sync → runtime)
+
+            # Attendre que les migrations et le démarrage se terminent
+            sleep 15
 
             # Vérifier que le backend est healthy
-            sleep 10
             curl -f http://localhost:5000/health || exit 1
