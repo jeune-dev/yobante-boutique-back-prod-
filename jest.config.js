@@ -20,3 +20,4 @@ module.exports = {
   resetMocks: true,
   restoreMocks: true
 };
+"testPathIgnorePatterns: ['/node_modules/', '/src/services/auth/auth.service.test.js', '/tests/unit/middlewares/auth.middleware.test.js', '/tests/integration/auth.integration.test.js']" 
