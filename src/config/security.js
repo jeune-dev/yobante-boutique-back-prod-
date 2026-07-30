@@ -45,7 +45,7 @@ if (isProd && _rawCorsOrigins.length === 0) {
 // Staging: Aussi nécessaire (données sensibles)
 if (!isProd && _rawCorsOrigins.length === 0) {
   // En dev local, autoriser localhost seulement
-  if (process.env.NODE_ENV === 'development') {
+  if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') {
     // OK, default sera appliqué ci-dessous
   } else {
     // Staging: Ne pas permettre pas de CORS_ORIGIN
