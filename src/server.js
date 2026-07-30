@@ -114,7 +114,7 @@ async function demarrerWorker() {
     if (isProd) {
       if (estWorkerPrincipal) {
         // Production: sync({ force: false }) crée les tables manquantes
-        await sequelize.sync({ force: false });
+        await sequelize.sync({ force: false, alter: true });
         await applyRuntimeMigrations();
         logger.info('Connexion PostgreSQL établie et tables synchronisées (production)');
       } else {
