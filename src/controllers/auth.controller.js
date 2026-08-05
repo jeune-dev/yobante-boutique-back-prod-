@@ -40,8 +40,9 @@ exports.register = asyncHandler(async (req, res) => {
 exports.login = asyncHandler(async (req, res) => {
   const { identifiant, password } = req.body;
 
-  if (!identifiant || !password)
-    throw new BadRequestError('Identifiant et mot de passe obligatoires');
+  // Validation spécifique
+  if (!identifiant) throw new BadRequestError('Email ou téléphone requis');
+  if (!password) throw new BadRequestError('Mot de passe requis');
 
   const result = await AuthService.login({ identifiant, password });
 
@@ -89,11 +90,15 @@ exports.refresh = asyncHandler(async (req, res) => {
  * Déconnexion et revocation du refresh token
  */
 exports.logout = asyncHandler(async (req, res) => {
-  const refreshToken = req.cookies?.[REFRESH_COOKIE] || req.body?.refreshToken;
+  try {
+    const refreshToken = req.cookies?.[REFRESH_COOKIE] || req.body?.refreshToken;
 
-  await AuthService.logout({ refreshToken });
-  res.clearCookie(REFRESH_COOKIE, { path: '/api/v1/auth' });
-  return ok(res, {}, 'Déconnexion réussie');
+    await AuthService.logout({ refreshToken });
+    res.clearCookie(REFRESH_COOKIE, { path: '/api/v1/auth' });
+    return ok(res, {}, 'Déconnexion réussie');
+  } catch (error) {
+    throw new BadRequestError('Erreur lors de la déconnexion');
+  }
 });
 
 /**

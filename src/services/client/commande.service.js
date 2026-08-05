@@ -62,7 +62,8 @@ class CommandeService {
         });
       }
 
-      if (!lignesPanier.length) return { success: false, message: 'Votre panier est vide' };
+      if (!lignesPanier.length)
+        return { success: false, message: 'Sélectionnez au moins un article à commander' };
 
       for (const ligne of lignesPanier) {
         if (!ligne.produit.isActive) {
