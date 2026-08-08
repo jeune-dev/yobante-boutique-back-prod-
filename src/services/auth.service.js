@@ -104,9 +104,22 @@ class AuthService {
         );
       }
 
+      // Générer la paire de tokens AVANT le commit : auto-connexion après
+      // l'inscription. Le mobile attend un token dans la réponse d'inscription
+      // (cf. login), sinon il navigue vers l'interface sans session.
+      const accessToken = _generateAccessToken(user);
+      const refreshToken = _generateRefreshToken(user);
+      await _storeRefreshToken(user.id, refreshToken, t);
+
       await t.commit();
 
-      return { success: true, message: 'Inscription réussie', user };
+      return {
+        success: true,
+        message: 'Inscription réussie',
+        user,
+        token: accessToken,
+        refreshToken,
+      };
     } catch (err) {
       await t.rollback();
       throw err;

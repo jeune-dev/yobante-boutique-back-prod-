@@ -30,7 +30,15 @@ exports.register = asyncHandler(async (req, res) => {
 
   if (!result.success) throw new BadRequestError(result.message);
 
-  return created(res, { user: formatUser(result.user) }, result.message);
+  // Compte déjà existant : le service renvoie un succès générique SANS
+  // utilisateur (anti-énumération d'email). Ne jamais appeler
+  // formatUser(undefined) → c'était la cause du 500
+  // « Cannot read properties of undefined (reading 'id') ».
+  const data = result.user ? { user: formatUser(result.user) } : {};
+  // Auto-connexion : l'inscription renvoie aussi les tokens, comme le login.
+  if (result.token) data.token = result.token;
+  if (result.refreshToken) data.refreshToken = result.refreshToken;
+  return created(res, data, result.message);
 });
 
 /**
