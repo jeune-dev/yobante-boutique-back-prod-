@@ -106,21 +106,16 @@ class AuthService {
         );
       }
 
-      // Générer la paire de tokens AVANT le commit : auto-connexion après
-      // l'inscription. Le mobile attend un token dans la réponse d'inscription
-      // (cf. login), sinon il navigue vers l'interface sans session.
-      const accessToken = _generateAccessToken(user);
-      const refreshToken = _generateRefreshToken(user);
-      await _storeRefreshToken(user.id, refreshToken, t);
-
       await t.commit();
 
+      // Décision produit : après l'inscription, l'utilisateur se connecte
+      // explicitement (pas d'auto-connexion). Les textes du message de succès
+      // sont fournis ici pour que le mobile les affiche tels quels.
       return {
         success: true,
         message: 'Inscription réussie',
+        messageDescription: 'Veuillez vous connecter pour accéder à votre dashboard.',
         user,
-        token: accessToken,
-        refreshToken,
       };
     } catch (err) {
       await t.rollback();

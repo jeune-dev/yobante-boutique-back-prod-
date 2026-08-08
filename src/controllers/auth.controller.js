@@ -33,10 +33,13 @@ exports.register = asyncHandler(async (req, res) => {
   // Garde défensive : ne jamais appeler formatUser(undefined) — c'était la
   // cause du 500 « Cannot read properties of undefined (reading 'id') » quand
   // le service ne renvoyait pas d'utilisateur.
-  const data = result.user ? { user: formatUser(result.user) } : {};
-  // Auto-connexion : l'inscription renvoie aussi les tokens, comme le login.
-  if (result.token) data.token = result.token;
-  if (result.refreshToken) data.refreshToken = result.refreshToken;
+  const data = result.user
+    ? {
+        user: formatUser(result.user),
+        messageTitle: result.message,
+        messageDescription: result.messageDescription,
+      }
+    : {};
   return created(res, data, result.message);
 });
 

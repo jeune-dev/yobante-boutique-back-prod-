@@ -76,12 +76,20 @@ describe('AuthService', () => {
 
       expect(result.success).toBe(true);
       expect(result.message).toBe('Inscription réussie');
+      // Les textes du message de succès viennent du backend, affichés tels
+      // quels par le mobile.
+      expect(result.messageDescription).toBe(
+        'Veuillez vous connecter pour accéder à votre dashboard.'
+      );
+      expect(result.user).toBeDefined();
+      // Pas d'auto-connexion : aucun token n'est renvoyé à l'inscription.
+      expect(result.token).toBeUndefined();
       expect(mockUser.create).toHaveBeenCalled();
       expect(bcrypt.hash).toHaveBeenCalledWith(registerData.password, 12);
       expect(mockTransaction.commit).toHaveBeenCalled();
     });
 
-    it('email déjà utilisé : ne crée pas de compte et renvoie un message neutre (anti-énumération)', async () => {
+    it('email déjà utilisé : ne crée pas de compte et renvoie un message explicite', async () => {
       const { registerData } = userFixture;
 
       mockSequelize.transaction.mockResolvedValue(mockTransaction);
@@ -89,10 +97,12 @@ describe('AuthService', () => {
 
       const result = await AuthService.register(registerData);
 
-      // Le service ne révèle pas l'existence de l'email : succès + message générique.
-      expect(result.success).toBe(true);
+      // Décision produit : on révèle l'existence du compte pour guider
+      // l'utilisateur vers la connexion. Le contrôleur transforme ce
+      // `success: false` en erreur 400 affichée telle quelle par le mobile.
+      expect(result.success).toBe(false);
       expect(result.message).toBe(
-        "Si cet email n'est pas encore enregistré, votre compte vient d'être créé."
+        'Un compte existe déjà avec cet email. Veuillez vous connecter.'
       );
       expect(mockUser.create).not.toHaveBeenCalled();
       expect(mockTransaction.rollback).toHaveBeenCalled();
