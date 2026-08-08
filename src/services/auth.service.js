@@ -65,10 +65,12 @@ class AuthService {
       const exist = await User.findOne({ where: { email: emailClean }, transaction: t });
       if (exist) {
         await t.rollback();
-        // Message générique : ne révèle pas l'existence du compte (anti-enumeration)
+        // Décision produit : on révèle explicitement qu'un compte existe déjà.
+        // Le contrôleur transforme ce `success: false` en erreur 400 dont le
+        // message est affiché tel quel par le mobile.
         return {
-          success: true,
-          message: "Si cet email n'est pas encore enregistré, votre compte vient d'être créé.",
+          success: false,
+          message: 'Un compte existe déjà avec cet email. Veuillez vous connecter.',
         };
       }
 
