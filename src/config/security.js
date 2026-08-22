@@ -144,6 +144,18 @@ const otpEmailRateLimitConfig = {
   },
 };
 
+// Demandes de suppression de compte (formulaire public admin) — anti-spam strict
+const suppressionCompteRateLimitConfig = {
+  windowMs: 60 * 60 * 1000,
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Trop de demandes envoyées. Réessayez dans 1 heure.',
+  },
+};
+
 /**
  * CORS sécurisé
  */
@@ -188,6 +200,7 @@ module.exports = {
   mutationRateLimitConfig,
   adminRateLimitConfig,
   otpEmailRateLimitConfig,
+  suppressionCompteRateLimitConfig,
   corsConfig,
   cookieConfig,
   uploadConfig,

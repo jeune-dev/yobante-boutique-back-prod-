@@ -6,6 +6,7 @@ const {
   mutationRateLimitConfig,
   adminRateLimitConfig,
   otpEmailRateLimitConfig,
+  suppressionCompteRateLimitConfig,
 } = require('../config/security');
 
 // ── GLOBAL LIMITER ─────────────────────────────────────────────────────────────
@@ -89,6 +90,13 @@ const adminLimiter = rateLimit({
   keyGenerator: (req) => req.user?.id || req.ip,
 });
 
+// ── SUPPRESSION COMPTE LIMITER ─────────────────────────────────────────────────
+// 3 demandes / heure par IP+email — anti-spam formulaire public
+const suppressionCompteLimiter = rateLimit({
+  ...suppressionCompteRateLimitConfig,
+  keyGenerator: (req) => `${req.body?.email || ''}:${req.ip}`,
+});
+
 module.exports = {
   globalLimiter,
   authLimiter,
@@ -99,4 +107,5 @@ module.exports = {
   otpEmailLimiter,
   mutationLimiter,
   adminLimiter,
+  suppressionCompteLimiter,
 };

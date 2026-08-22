@@ -63,6 +63,20 @@ function sendCommandeStatut(to, commande, statut) {
   });
 }
 
+function sendDemandeSuppressionCompteEmail(to, { email, objet, demandeId }) {
+  return sendMail({
+    to,
+    subject: `Nouvelle demande de suppression de compte — ${email}`,
+    html: `
+      <p>Une nouvelle demande de suppression de compte a été soumise via le formulaire public.</p>
+      <p><strong>Email du demandeur :</strong> ${email}</p>
+      <p><strong>Objet de la demande :</strong></p>
+      <p>${objet.replace(/\n/g, '<br>')}</p>
+      <p><strong>Identifiant de la demande :</strong> ${demandeId}</p>
+    `,
+  });
+}
+
 module.exports = {
   sendMail,
   sendOtpEmail,
@@ -70,4 +84,5 @@ module.exports = {
   sendResetPasswordEmail,
   sendCommandeConfirmation,
   sendCommandeStatut,
+  sendDemandeSuppressionCompteEmail,
 };

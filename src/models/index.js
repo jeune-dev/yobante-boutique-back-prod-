@@ -25,6 +25,7 @@ const DeviceToken = require('./DeviceToken.model');
 const Rayon = require('./Rayon.model');
 const SousRayon = require('./SousRayon.model');
 const BanniereProduit = require('./BanniereProduit.model');
+const DemandeSuppressionCompte = require('./DemandeSuppressionCompte.model');
 
 // ── User associations ──────────────────────────────────────────
 User.hasMany(Commande, { foreignKey: 'userId', as: 'commandes', onDelete: 'CASCADE' });
@@ -167,4 +168,5 @@ module.exports = {
   Rayon,
   SousRayon,
   BanniereProduit,
+  DemandeSuppressionCompte,
 };
