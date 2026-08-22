@@ -57,6 +57,13 @@ jobs:
             # Attendre que le conteneur soit prêt avant d'exécuter les migrations
             sleep 10
 
+            # Marque les migrations historiques (avant le passage à
+            # sequelize-cli) comme déjà appliquées — leur schéma existe déjà
+            # en prod via sequelize.sync(), les rejouer échouerait sur la
+            # première colonne déjà existante. Sans effet sur les migrations
+            # postérieures au 22/08/2026, qui s'exécutent normalement après.
+            docker compose -f docker-compose.prod.yml exec -T backend npm run migrate:seed-legacy
+
             # Migrations Sequelize CLI (ALTER TABLE, nouvelles colonnes, index) —
             # sequelize.sync() dans server.js ne crée que les tables manquantes,
             # il ne modifie jamais le schéma d'une table existante. Sans cette
