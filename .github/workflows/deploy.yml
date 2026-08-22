@@ -54,11 +54,14 @@ jobs:
             # Rebuilder et relancer les services
             docker compose -f docker-compose.prod.yml up -d --build
 
-            # Les migrations s'exécutent automatiquement au démarrage du backend
-            # (voir server.js pour le flux complet: migrations → sync → runtime)
+            # Attendre que le conteneur soit prêt avant d'exécuter les migrations
+            sleep 10
 
-            # Attendre que les migrations et le démarrage se terminent
-            sleep 15
+            # Migrations Sequelize CLI (ALTER TABLE, nouvelles colonnes, index) —
+            # sequelize.sync() dans server.js ne crée que les tables manquantes,
+            # il ne modifie jamais le schéma d'une table existante. Sans cette
+            # étape, toute migration ajoutant une colonne reste sans effet en prod.
+            docker compose -f docker-compose.prod.yml exec -T backend npm run migrate
 
             # Vérifier que le backend est healthy
             curl -f http://localhost:5000/health || exit 1
