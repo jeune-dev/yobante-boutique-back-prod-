@@ -39,6 +39,16 @@ const ProfilVendeur = sequelize.define(
       type: DataTypes.STRING(500),
       allowNull: true,
     },
+    latitude: {
+      type: DataTypes.DECIMAL(10, 7),
+      allowNull: true,
+      comment: 'Pour la recherche "boutiques proches"',
+    },
+    longitude: {
+      type: DataTypes.DECIMAL(10, 7),
+      allowNull: true,
+      comment: 'Pour la recherche "boutiques proches"',
+    },
     isValidatedStep1: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,

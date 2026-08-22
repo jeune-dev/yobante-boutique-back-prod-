@@ -183,6 +183,8 @@ app.use('/api/v1/frais-livraisons', require('./routes/client/frais-livraison.rou
 app.use('/api/v1/favoris', authenticatedLimiter, auth, require('./routes/client/favori.route'));
 app.use('/api/v1/boutiques', require('./routes/client/boutique.route'));
 app.use('/api/v1/rayons', require('./routes/client/rayon.route'));
+app.use('/api/v1/acheteurs', require('./routes/client/acheteur.route'));
+app.use('/api/v1/messages', authenticatedLimiter, auth, require('./routes/client/message.route'));
 app.use(
   '/api/v1/suppression-compte',
   suppressionCompteLimiter,

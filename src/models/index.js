@@ -26,9 +26,18 @@ const Rayon = require('./Rayon.model');
 const SousRayon = require('./SousRayon.model');
 const BanniereProduit = require('./BanniereProduit.model');
 const DemandeSuppressionCompte = require('./DemandeSuppressionCompte.model');
+const Message = require('./Message.model');
 
 // ── User associations ──────────────────────────────────────────
 User.hasMany(Commande, { foreignKey: 'userId', as: 'commandes', onDelete: 'CASCADE' });
+User.hasMany(Message, { foreignKey: 'expediteurId', as: 'messagesEnvoyes', onDelete: 'CASCADE' });
+User.hasMany(Message, {
+  foreignKey: 'destinataireId',
+  as: 'messagesRecus',
+  onDelete: 'CASCADE',
+});
+Message.belongsTo(User, { foreignKey: 'expediteurId', as: 'expediteur' });
+Message.belongsTo(User, { foreignKey: 'destinataireId', as: 'destinataire' });
 User.hasMany(Adresse, { foreignKey: 'userId', as: 'adresses', onDelete: 'CASCADE' });
 User.hasMany(Panier, { foreignKey: 'userId', as: 'panier', onDelete: 'CASCADE' });
 User.hasMany(Avis, { foreignKey: 'userId', as: 'avis', onDelete: 'CASCADE' });
@@ -169,4 +178,5 @@ module.exports = {
   SousRayon,
   BanniereProduit,
   DemandeSuppressionCompte,
+  Message,
 };
