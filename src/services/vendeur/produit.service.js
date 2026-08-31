@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { Produit, Categorie, Avis, sequelize } = require('../../models');
+const { Produit, Avis, sequelize } = require('../../models');
 const { generateUniqueSlug, createWithUniqueSlug } = require('../../utils/slugify');
 const paginate = require('../../utils/paginate');
 const { uploadImage, deleteImage } = require('../r2.service');
@@ -18,7 +18,6 @@ const CHAMPS_VENDEUR = [
   'description',
   'prix',
   'stockAlloue',
-  'categorieId',
   'poids',
   'infoLegale',
   'messageVendeur',
@@ -33,9 +32,6 @@ const filtrerChampsVendeur = (data = {}) =>
 
 class VendeurProduitService {
   static async soumettreProduit(vendeurId, data, files = []) {
-    const categorie = await Categorie.findByPk(data.categorieId);
-    if (!categorie) return { success: false, message: 'Catégorie introuvable' };
-
     const slug = await generateUniqueSlug(Produit, data.nom);
     const payload = {
       ...filtrerChampsVendeur(data),
@@ -65,7 +61,6 @@ class VendeurProduitService {
 
     const { count, rows } = await Produit.findAndCountAll({
       where,
-      include: [{ model: Categorie, as: 'categorie', attributes: ['id', 'nom', 'slug'] }],
       order: [['createdAt', 'DESC']],
       limit: l,
       offset,
@@ -81,10 +76,7 @@ class VendeurProduitService {
   static async getProduitById(vendeurId, id) {
     const produit = await Produit.findOne({
       where: { id, vendeurId },
-      include: [
-        { model: Categorie, as: 'categorie' },
-        { model: Avis, as: 'avis', limit: 10, order: [['createdAt', 'DESC']] },
-      ],
+      include: [{ model: Avis, as: 'avis', limit: 10, order: [['createdAt', 'DESC']] }],
     });
     if (!produit) return { success: false, message: 'Produit introuvable' };
     return { success: true, produit };

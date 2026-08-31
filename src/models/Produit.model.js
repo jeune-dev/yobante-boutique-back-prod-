@@ -91,9 +91,12 @@ const Produit = sequelize.define(
       unique: true,
       allowNull: true,
     },
+    // Le rangement du catalogue se fait désormais par rayon / sous-rayon.
+    // La colonne reste en base pour l'historique et la navigation client
+    // existante, mais n’est plus renseignée à la création d'un produit.
     categorieId: {
       type: DataTypes.UUID,
-      allowNull: false,
+      allowNull: true,
     },
     rayonId: {
       type: DataTypes.UUID,

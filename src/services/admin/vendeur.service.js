@@ -1,136 +1,205 @@
+// ─────────────────────────────────────────────────────────────
+// services/admin/vendeur.service.js — Gestion des comptes vendeurs
+//
+// Un vendeur est créé par un administrateur et il est ACTIF immédiatement :
+// il n'y a plus de circuit de validation en deux étapes. Le seul état qui
+// varie ensuite est `actif` / `bloque`, piloté par l'administrateur.
+// ─────────────────────────────────────────────────────────────
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { Op } = require('sequelize');
 const { User, ProfilVendeur, Produit, sequelize } = require('../../models');
 const { bcryptConfig } = require('../../config/security');
-const { ROLES } = require('../../constants');
+const { ROLES, STATUT_VENDEUR } = require('../../constants');
 const paginate = require('../../utils/paginate');
+const logger = require('../../config/logger');
+const cache = require('../../config/cache');
+const { sendEmail } = require('../resend.service');
+const vendeurAccesTemplate = require('../../templates/mail/vendeurAcces.template');
+
+// Alphabets sans caractères ambigus (0/O, 1/l/I) : le mot de passe est recopié
+// à la main depuis un email, la confusion coûte un ticket de support.
+const MAJUSCULES = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+const MINUSCULES = 'abcdefghjkmnpqrstuvwxyz';
+const CHIFFRES = '23456789';
+
+/** Tirage uniforme non biaisé dans `alphabet` (crypto, pas Math.random). */
+const tirer = (alphabet) => alphabet[crypto.randomInt(alphabet.length)];
 
 class GestionVendeurService {
-  static _generatePassword(length = 7) {
-    const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-    const lower = 'abcdefghjkmnpqrstuvwxyz';
-    const digits = '23456789';
-    const all = upper + lower + digits;
-    let pwd = upper[Math.floor(Math.random() * upper.length)];
-    pwd += digits[Math.floor(Math.random() * digits.length)];
-    for (let i = 2; i < length; i++) pwd += all[Math.floor(Math.random() * all.length)];
-    return pwd
-      .split('')
-      .sort(() => Math.random() - 0.5)
-      .join('');
+  /**
+   * Mot de passe temporaire : au moins une majuscule et un chiffre, pour
+   * satisfaire les règles de complexité exigées lors du changement.
+   */
+  static _genererMotDePasse(longueur = 12) {
+    const tous = MAJUSCULES + MINUSCULES + CHIFFRES;
+    const caracteres = [tirer(MAJUSCULES), tirer(CHIFFRES), tirer(MINUSCULES)];
+    for (let i = caracteres.length; i < longueur; i++) caracteres.push(tirer(tous));
+
+    // Mélange de Fisher-Yates : `sort(() => Math.random() - 0.5)` ne produit pas
+    // une permutation uniforme et laisserait la majuscule souvent en tête.
+    for (let i = caracteres.length - 1; i > 0; i--) {
+      const j = crypto.randomInt(i + 1);
+      [caracteres[i], caracteres[j]] = [caracteres[j], caracteres[i]];
+    }
+    return caracteres.join('');
   }
 
-  static async creerVendeur(data, adminId) {
+  /** Purge le cache d'authentification : le blocage est vu à la requête suivante. */
+  static _invaliderCacheAuth(userId) {
+    cache.del(`auth:${userId}`);
+    cache.del(`${ROLES.ADMIN}:${userId}`);
+  }
+
+  /**
+   * Vue « vendeur » attendue par l'interface admin : les informations de la
+   * boutique sont remontées à plat (`nomBoutique`, `adresseBoutique`, …) *et*
+   * regroupées sous `boutique`, car les deux écrans admin les lisaient
+   * différemment. Sans cette mise à plat, la colonne Boutique restait vide :
+   * le backend ne renvoyait que `profilVendeur.nomBoutique`.
+   */
+  static _presenter(user) {
+    if (!user) return null;
+    const brut = typeof user.toJSON === 'function' ? user.toJSON() : { ...user };
+    const profil = brut.profilVendeur || null;
+    delete brut.password;
+
+    const boutique = profil
+      ? {
+          id: profil.id,
+          nom: profil.nomBoutique || null,
+          description: profil.description || null,
+          adresse: profil.adresseBoutique || null,
+          telephone: profil.telephone || null,
+          infoLegale: profil.infoLegale || null,
+          logo: profil.logo || null,
+          latitude: profil.latitude ?? null,
+          longitude: profil.longitude ?? null,
+        }
+      : null;
+
+    return {
+      ...brut,
+      statut: brut.isActive ? STATUT_VENDEUR.ACTIF : STATUT_VENDEUR.BLOQUE,
+      isBlocked: !brut.isActive,
+      boutique,
+      // Champs à plat consommés directement par les tableaux de l'admin
+      nomBoutique: boutique?.nom ?? null,
+      adresseBoutique: boutique?.adresse ?? null,
+      descriptionBoutique: boutique?.description ?? null,
+      telephoneBoutique: boutique?.telephone ?? null,
+      logoBoutique: boutique?.logo ?? null,
+    };
+  }
+
+  static async creerVendeur(data) {
+    const emailClean = data.email.trim().toLowerCase();
+    const motDePasseTemporaire = GestionVendeurService._genererMotDePasse();
+
     const t = await sequelize.transaction();
+    let user;
+    let profil;
     try {
-      const emailClean = data.email.trim().toLowerCase();
       const exist = await User.findOne({ where: { email: emailClean }, transaction: t });
       if (exist) {
         await t.rollback();
         return { success: false, message: 'Cet email est déjà utilisé' };
       }
 
-      const plainPassword = GestionVendeurService._generatePassword();
-      const hashedPassword = await bcrypt.hash(plainPassword, bcryptConfig.saltRounds);
+      const hashedPassword = await bcrypt.hash(motDePasseTemporaire, bcryptConfig.saltRounds);
 
-      const user = await User.create(
+      user = await User.create(
         {
           nom: data.nom,
           prenom: data.prenom,
           email: emailClean,
           password: hashedPassword,
-          telephone: data.telephone,
+          telephone: data.telephone || null,
           role: ROLES.VENDEUR,
           isVerified: true,
-          isActive: false,
+          // Opérationnel dès la création : plus d'attente de validation.
+          // Seul un blocage explicite le désactive.
+          isActive: true,
           mustChangePassword: true,
         },
         { transaction: t }
       );
 
-      const profil = await ProfilVendeur.create(
+      profil = await ProfilVendeur.create(
         {
           userId: user.id,
           nomBoutique: data.nomBoutique,
-          description: data.description,
-          infoLegale: data.infoLegale,
-          adresseBoutique: data.adresseBoutique,
-          telephone: data.telephone,
+          description: data.description || null,
+          infoLegale: data.infoLegale || null,
+          adresseBoutique: data.adresseBoutique || null,
+          telephone: data.telephone || null,
+          isActive: true,
+          // Colonnes héritées du circuit de validation, conservées en base :
+          // renseignées à true pour rester cohérentes avec un compte actif.
+          isValidatedStep1: true,
+          isValidatedStep2: true,
         },
         { transaction: t }
       );
 
       await t.commit();
-
-      // Envoyer l'email après commit (hors transaction)
-      try {
-        const { Resend } = require('resend');
-        const resend = new Resend(process.env.RESEND_API_KEY);
-        await resend.emails.send({
-          from: process.env.RESEND_FROM || 'Yobante Boutique <noreply@yobante.com>',
-          to: emailClean,
-          subject: 'Bienvenue sur Yobante Boutique — Vos accès vendeur',
-          html: `
-            <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
-              <h2>Bonjour ${data.prenom} ${data.nom},</h2>
-              <p>Nous avons créé un compte <strong>vendeur</strong> pour vous sur <strong>Yobante Boutique</strong>.</p>
-              <p>Voici vos identifiants de connexion :</p>
-              <table style="border-collapse:collapse;width:100%">
-                <tr><td style="padding:8px;font-weight:bold">Lien de connexion</td><td style="padding:8px"><a href="${process.env.FRONTEND_URL || '#'}">${process.env.FRONTEND_URL || 'https://yobante.com'}</a></td></tr>
-                <tr><td style="padding:8px;font-weight:bold">Identifiant (email)</td><td style="padding:8px">${emailClean}</td></tr>
-                <tr><td style="padding:8px;font-weight:bold">Téléphone</td><td style="padding:8px">${data.telephone || '—'}</td></tr>
-                <tr><td style="padding:8px;font-weight:bold">Mot de passe temporaire</td><td style="padding:8px;font-family:monospace;font-size:18px;letter-spacing:2px"><strong>${plainPassword}</strong></td></tr>
-              </table>
-              <p style="margin-top:16px;color:#e53e3e"><strong>Important :</strong> Lors de votre première connexion, vous devrez obligatoirement changer ce mot de passe.</p>
-              <p>À bientôt sur Yobante Boutique !</p>
-            </div>
-          `,
-        });
-      } catch (mailErr) {
-        require('../config/logger').error('[Vendeur] Email non envoyé', { error: mailErr.message });
-      }
-
-      const { password: _pw, ...userSafe } = user.toJSON();
-      return { success: true, message: 'Compte vendeur créé avec succès', user: userSafe, profil };
     } catch (err) {
       await t.rollback();
       throw err;
     }
+
+    // Envoi hors transaction : le compte existe, un email en échec ne doit pas
+    // annuler sa création. Le mot de passe en clair n'est jamais journalisé.
+    const envoi = await sendEmail({
+      to: emailClean,
+      subject: 'Bienvenue sur Yobante Boutique — Vos accès vendeur',
+      html: vendeurAccesTemplate({
+        nom: data.nom,
+        prenom: data.prenom,
+        email: emailClean,
+        telephone: data.telephone,
+        motDePasseTemporaire,
+        lienConnexion: process.env.FRONTEND_URL || 'https://yobante.com',
+      }),
+    });
+
+    if (!envoi.success) {
+      logger.error('[Vendeur] Email des accès non envoyé', { userId: user.id, error: envoi.error });
+    }
+
+    const vendeur = GestionVendeurService._presenter({
+      ...user.toJSON(),
+      profilVendeur: profil.toJSON(),
+    });
+
+    return {
+      success: true,
+      message: envoi.success
+        ? 'Compte vendeur créé. Les identifiants ont été envoyés par email.'
+        : "Compte vendeur créé, mais l'email des identifiants n'a pas pu être envoyé.",
+      emailEnvoye: envoi.success,
+      vendeur,
+      profil,
+    };
   }
 
   static async listerVendeurs({ page, limit, search, statut } = {}) {
     const { page: p, limit: l, offset } = paginate(page, limit);
 
-    const whereUser = { role: ROLES.VENDEUR };
+    const where = { role: ROLES.VENDEUR };
     if (search) {
-      whereUser[Op.or] = [
+      where[Op.or] = [
         { nom: { [Op.iLike]: `%${search}%` } },
         { prenom: { [Op.iLike]: `%${search}%` } },
         { email: { [Op.iLike]: `%${search}%` } },
       ];
     }
-
-    const whereProfil = {};
-    if (statut === 'en_attente') {
-      whereProfil.isValidatedStep1 = false;
-      whereProfil.isValidatedStep2 = false;
-    } else if (statut === 'step1') {
-      whereProfil.isValidatedStep1 = true;
-      whereProfil.isValidatedStep2 = false;
-    } else if (statut === 'valide') {
-      whereProfil.isActive = true;
-    }
+    if (statut === STATUT_VENDEUR.ACTIF) where.isActive = true;
+    else if (statut === STATUT_VENDEUR.BLOQUE) where.isActive = false;
 
     const { count, rows } = await User.findAndCountAll({
-      where: whereUser,
-      include: [
-        {
-          model: ProfilVendeur,
-          as: 'profilVendeur',
-          where: Object.keys(whereProfil).length ? whereProfil : undefined,
-          required: false,
-        },
-      ],
+      where,
+      include: [{ model: ProfilVendeur, as: 'profilVendeur', required: false }],
       attributes: { exclude: ['password'] },
       order: [['createdAt', 'DESC']],
       limit: l,
@@ -139,7 +208,7 @@ class GestionVendeurService {
 
     return {
       success: true,
-      vendeurs: rows,
+      vendeurs: rows.map((row) => GestionVendeurService._presenter(row)),
       pagination: { total: count, totalPages: Math.ceil(count / l), page: p, limit: l },
     };
   }
@@ -154,105 +223,83 @@ class GestionVendeurService {
       ],
     });
     if (!user) return { success: false, message: 'Vendeur introuvable' };
-    return { success: true, vendeur: user };
+    return { success: true, vendeur: GestionVendeurService._presenter(user) };
+  }
+
+  /** Statut courant, lu en base — source de vérité de l'interface. */
+  static async getStatut(id) {
+    const user = await User.findOne({
+      where: { id, role: ROLES.VENDEUR },
+      attributes: ['id', 'isActive'],
+    });
+    if (!user) return { success: false, message: 'Vendeur introuvable' };
+
+    return {
+      success: true,
+      message: 'Statut du vendeur',
+      statut: user.isActive ? STATUT_VENDEUR.ACTIF : STATUT_VENDEUR.BLOQUE,
+      isBlocked: !user.isActive,
+    };
   }
 
   /**
-   * Première validation admin — protégée contre la double validation simultanée.
-   * UPDATE atomique WHERE isValidatedStep1 = false : si deux admins cliquent en même temps,
-   * un seul verra nbRows=1 (succès), l'autre verra nbRows=0 (déjà fait).
+   * Bascule le statut d'un vendeur.
+   * L'UPDATE porte la condition sur l'état attendu : deux administrateurs qui
+   * cliquent en même temps ne produisent qu'un seul changement effectif, le
+   * second reçoit « déjà bloqué / déjà actif » au lieu d'un faux succès.
    */
-  static async validerStep1(id, adminId) {
-    const [nbRows] = await ProfilVendeur.update(
-      { isValidatedStep1: true, noteStep1By: adminId },
-      { where: { userId: id, isValidatedStep1: false } }
-    );
-
-    if (nbRows === 0) {
-      const profil = await ProfilVendeur.findOne({ where: { userId: id } });
-      if (!profil) return { success: false, message: 'Profil vendeur introuvable' };
-      return { success: false, message: 'Étape 1 déjà validée' };
-    }
-
-    const profil = await ProfilVendeur.findOne({ where: { userId: id } });
-    return { success: true, message: 'Étape 1 de validation effectuée', profil };
-  }
-
-  /**
-   * Deuxième validation admin — idem : WHERE isValidatedStep1=true AND isValidatedStep2=false.
-   * Active le compte utilisateur dans la même transaction.
-   */
-  static async validerStep2(id, adminId) {
-    const t = await sequelize.transaction();
-    try {
-      const [nbRows] = await ProfilVendeur.update(
-        { isValidatedStep2: true, isActive: true, noteStep2By: adminId },
-        { where: { userId: id, isValidatedStep1: true, isValidatedStep2: false }, transaction: t }
-      );
-
-      if (nbRows === 0) {
-        await t.rollback();
-        const profil = await ProfilVendeur.findOne({ where: { userId: id } });
-        if (!profil) return { success: false, message: 'Profil vendeur introuvable' };
-        if (!profil.isValidatedStep1)
-          return { success: false, message: "L'étape 1 doit être validée d'abord" };
-        return { success: false, message: 'Étape 2 déjà validée' };
-      }
-
-      await User.update({ isActive: true }, { where: { id }, transaction: t });
-      await t.commit();
-
-      const profil = await ProfilVendeur.findOne({ where: { userId: id } });
-      return { success: true, message: 'Vendeur entièrement validé et activé', profil };
-    } catch (err) {
-      await t.rollback();
-      throw err;
-    }
-  }
-
-  static async rejeterVendeur(id, motifRejet) {
-    const t = await sequelize.transaction();
-    try {
-      const [nbRows] = await ProfilVendeur.update(
-        { isValidatedStep1: false, isValidatedStep2: false, isActive: false, motifRejet },
-        { where: { userId: id }, transaction: t }
-      );
-      if (nbRows === 0) {
-        await t.rollback();
-        return { success: false, message: 'Profil vendeur introuvable' };
-      }
-      await User.update({ isActive: false }, { where: { id }, transaction: t });
-      await t.commit();
-      return { success: true, message: 'Vendeur rejeté' };
-    } catch (err) {
-      await t.rollback();
-      throw err;
-    }
-  }
-
-  static async toggleActivation(id) {
+  static async _changerStatut(id, actif) {
     const t = await sequelize.transaction();
     try {
       const user = await User.findOne({
         where: { id, role: ROLES.VENDEUR },
+        attributes: ['id', 'isActive'],
         transaction: t,
-        lock: true,
       });
       if (!user) {
         await t.rollback();
         return { success: false, message: 'Vendeur introuvable' };
       }
 
-      const newState = !user.isActive;
-      await User.update({ isActive: newState }, { where: { id }, transaction: t });
-      await ProfilVendeur.update({ isActive: newState }, { where: { userId: id }, transaction: t });
-      await t.commit();
+      const [nbLignes] = await User.update(
+        { isActive: actif },
+        { where: { id, isActive: !actif }, transaction: t }
+      );
 
-      return { success: true, message: `Vendeur ${newState ? 'activé' : 'désactivé'}` };
+      if (nbLignes === 0) {
+        await t.rollback();
+        return {
+          success: false,
+          message: actif ? 'Ce vendeur est déjà actif' : 'Ce vendeur est déjà bloqué',
+          statut: actif ? STATUT_VENDEUR.ACTIF : STATUT_VENDEUR.BLOQUE,
+        };
+      }
+
+      // Le profil boutique suit le compte : un vendeur bloqué ne passe plus le
+      // middleware vendeur et n'apparaît plus comme boutique active.
+      await ProfilVendeur.update({ isActive: actif }, { where: { userId: id }, transaction: t });
+      await t.commit();
     } catch (err) {
       await t.rollback();
       throw err;
     }
+
+    GestionVendeurService._invaliderCacheAuth(id);
+
+    return {
+      success: true,
+      message: actif ? 'Vendeur débloqué avec succès' : 'Vendeur bloqué avec succès',
+      statut: actif ? STATUT_VENDEUR.ACTIF : STATUT_VENDEUR.BLOQUE,
+      isBlocked: !actif,
+    };
+  }
+
+  static bloquerVendeur(id) {
+    return GestionVendeurService._changerStatut(id, false);
+  }
+
+  static debloquerVendeur(id) {
+    return GestionVendeurService._changerStatut(id, true);
   }
 
   static async updateProfil(id, data) {

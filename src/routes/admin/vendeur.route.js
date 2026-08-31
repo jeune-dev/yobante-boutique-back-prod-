@@ -1,16 +1,24 @@
 const router = require('express').Router();
 const adminMiddleware = require('../../middlewares/admin.middleware');
+const validate = require('../../middlewares/validate.middleware');
 const ctrl = require('../../controllers/admin/vendeur.controller');
+const {
+  creerVendeurSchema,
+  updateProfilVendeurSchema,
+} = require('../../validations/vendeur.validation');
 
 router.use(adminMiddleware);
 
 router.get('/', ctrl.listerVendeurs);
-router.post('/', ctrl.creerVendeur);
+router.post('/', validate(creerVendeurSchema), ctrl.creerVendeur);
 router.get('/:id', ctrl.getVendeur);
-router.put('/:id', ctrl.updateProfil);
-router.patch('/:id/valider-step1', ctrl.validerStep1);
-router.patch('/:id/valider-step2', ctrl.validerStep2);
-router.patch('/:id/rejeter', ctrl.rejeterVendeur);
-router.patch('/:id/toggle', ctrl.toggleActivation);
+router.put('/:id', validate(updateProfilVendeurSchema), ctrl.updateProfil);
+
+// Statut du vendeur : lecture et bascule. Le circuit de validation en deux
+// étapes (valider-step1 / valider-step2 / rejeter) a été retiré — un vendeur
+// est actif dès sa création et seul le blocage le désactive.
+router.get('/:id/statut', ctrl.getStatut);
+router.patch('/:id/bloquer', ctrl.bloquerVendeur);
+router.patch('/:id/debloquer', ctrl.debloquerVendeur);
 
 module.exports = router;

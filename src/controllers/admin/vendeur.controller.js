@@ -4,9 +4,9 @@ const { ok, created } = require('../../utils/response');
 const { BadRequestError, NotFoundError } = require('../../errors/AppError');
 
 exports.creerVendeur = asyncHandler(async (req, res) => {
-  const result = await GestionVendeurService.creerVendeur(req.body, req.user.id);
+  const result = await GestionVendeurService.creerVendeur(req.body);
   if (!result.success) throw new BadRequestError(result.message);
-  return created(res, { user: result.user, profil: result.profil }, result.message);
+  return created(res, { vendeur: result.vendeur, emailEnvoye: result.emailEnvoye }, result.message);
 });
 
 exports.listerVendeurs = asyncHandler(async (req, res) => {
@@ -20,28 +20,22 @@ exports.getVendeur = asyncHandler(async (req, res) => {
   return ok(res, { vendeur: result.vendeur }, 'Vendeur');
 });
 
-exports.validerStep1 = asyncHandler(async (req, res) => {
-  const result = await GestionVendeurService.validerStep1(req.params.id, req.user.id);
-  if (!result.success) throw new BadRequestError(result.message);
-  return ok(res, { profil: result.profil }, result.message);
-});
-
-exports.validerStep2 = asyncHandler(async (req, res) => {
-  const result = await GestionVendeurService.validerStep2(req.params.id, req.user.id);
-  if (!result.success) throw new BadRequestError(result.message);
-  return ok(res, { profil: result.profil }, result.message);
-});
-
-exports.rejeterVendeur = asyncHandler(async (req, res) => {
-  const result = await GestionVendeurService.rejeterVendeur(req.params.id, req.body.motif);
-  if (!result.success) throw new BadRequestError(result.message);
-  return ok(res, { profil: result.profil }, result.message);
-});
-
-exports.toggleActivation = asyncHandler(async (req, res) => {
-  const result = await GestionVendeurService.toggleActivation(req.params.id);
+exports.getStatut = asyncHandler(async (req, res) => {
+  const result = await GestionVendeurService.getStatut(req.params.id);
   if (!result.success) throw new NotFoundError(result.message);
-  return ok(res, { user: result.user }, result.message);
+  return ok(res, { statut: result.statut, isBlocked: result.isBlocked }, result.message);
+});
+
+exports.bloquerVendeur = asyncHandler(async (req, res) => {
+  const result = await GestionVendeurService.bloquerVendeur(req.params.id);
+  if (!result.success) throw new BadRequestError(result.message);
+  return ok(res, { statut: result.statut, isBlocked: result.isBlocked }, result.message);
+});
+
+exports.debloquerVendeur = asyncHandler(async (req, res) => {
+  const result = await GestionVendeurService.debloquerVendeur(req.params.id);
+  if (!result.success) throw new BadRequestError(result.message);
+  return ok(res, { statut: result.statut, isBlocked: result.isBlocked }, result.message);
 });
 
 exports.updateProfil = asyncHandler(async (req, res) => {

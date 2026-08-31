@@ -60,7 +60,52 @@ const Produit = {
     isFeatured: { type: 'boolean' },
     poids: { type: 'number', nullable: true },
     reference: { type: 'string', nullable: true },
-    categorieId: { type: 'string', format: 'uuid' },
+    rayonId: { type: 'string', format: 'uuid', nullable: true },
+    sousRayonId: { type: 'string', format: 'uuid', nullable: true },
+    // Conservée pour l'historique : la catégorie n'est plus renseignée à la
+    // création, le classement se fait par rayon / sous-rayon.
+    categorieId: { type: 'string', format: 'uuid', nullable: true },
+  },
+};
+
+const Boutique = {
+  type: 'object',
+  nullable: true,
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    nom: { type: 'string', nullable: true },
+    description: { type: 'string', nullable: true },
+    adresse: { type: 'string', nullable: true },
+    telephone: { type: 'string', nullable: true },
+    infoLegale: { type: 'string', nullable: true },
+    logo: { type: 'string', nullable: true },
+    latitude: { type: 'number', nullable: true },
+    longitude: { type: 'number', nullable: true },
+  },
+};
+
+// Vue « vendeur » renvoyée à l'admin : le compte, plus les informations de la
+// boutique à la fois regroupées (`boutique`) et à plat, telles que les
+// tableaux de l'interface les consomment.
+const Vendeur = {
+  type: 'object',
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    nom: { type: 'string' },
+    prenom: { type: 'string' },
+    email: { type: 'string', format: 'email' },
+    telephone: { type: 'string', nullable: true },
+    role: { type: 'string', enum: ['VENDEUR'] },
+    isActive: { type: 'boolean' },
+    isBlocked: { type: 'boolean' },
+    statut: { type: 'string', enum: ['actif', 'bloque'] },
+    mustChangePassword: { type: 'boolean' },
+    boutique: Boutique,
+    nomBoutique: { type: 'string', nullable: true },
+    adresseBoutique: { type: 'string', nullable: true },
+    descriptionBoutique: { type: 'string', nullable: true },
+    telephoneBoutique: { type: 'string', nullable: true },
+    logoBoutique: { type: 'string', nullable: true },
   },
 };
 
@@ -186,6 +231,8 @@ module.exports = {
       Pagination,
       User,
       Categorie,
+      Boutique,
+      Vendeur,
       Produit,
       Adresse,
       Commande,
@@ -928,6 +975,164 @@ module.exports = {
       },
     },
 
+    // ── ADMIN - VENDEURS ─────────────────────────────────────────────────
+    '/admin/vendeurs': {
+      get: {
+        tags: ['Admin - Vendeurs'],
+        summary: 'Liste des vendeurs (informations boutique incluses)',
+        security: bearerAuth,
+        parameters: [
+          { name: 'page', in: 'query', schema: { type: 'integer' } },
+          { name: 'limit', in: 'query', schema: { type: 'integer' } },
+          { name: 'search', in: 'query', schema: { type: 'string' } },
+          {
+            name: 'statut',
+            in: 'query',
+            schema: { type: 'string', enum: ['actif', 'bloque'] },
+          },
+        ],
+        responses: {
+          200: okJson('Liste des vendeurs', {
+            type: 'object',
+            properties: {
+              vendeurs: { type: 'array', items: Vendeur },
+              pagination: Pagination,
+            },
+          }),
+          ...errorResponses,
+        },
+      },
+      post: {
+        tags: ['Admin - Vendeurs'],
+        summary: 'Créer un vendeur (actif immédiatement, mot de passe envoyé par email)',
+        description:
+          'Le mot de passe temporaire est généré par le serveur, haché en base et ' +
+          'transmis au vendeur par email (Resend). Il devra obligatoirement le ' +
+          'changer à sa première connexion.',
+        security: bearerAuth,
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['nom', 'prenom', 'email', 'nomBoutique'],
+                properties: {
+                  nom: { type: 'string' },
+                  prenom: { type: 'string' },
+                  email: { type: 'string', format: 'email' },
+                  telephone: { type: 'string' },
+                  nomBoutique: { type: 'string' },
+                  adresseBoutique: { type: 'string' },
+                  description: { type: 'string' },
+                  infoLegale: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          201: okJson('Vendeur créé', {
+            type: 'object',
+            properties: { vendeur: Vendeur, emailEnvoye: { type: 'boolean' } },
+          }),
+          ...errorResponses,
+        },
+      },
+    },
+    '/admin/vendeurs/{id}': {
+      get: {
+        tags: ['Admin - Vendeurs'],
+        summary: 'Détail d’un vendeur',
+        security: bearerAuth,
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: okJson('Vendeur', { type: 'object', properties: { vendeur: Vendeur } }),
+          ...errorResponses,
+        },
+      },
+      put: {
+        tags: ['Admin - Vendeurs'],
+        summary: 'Modifier la boutique d’un vendeur',
+        security: bearerAuth,
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  nomBoutique: { type: 'string' },
+                  adresseBoutique: { type: 'string' },
+                  description: { type: 'string' },
+                  infoLegale: { type: 'string' },
+                  telephone: { type: 'string' },
+                  latitude: { type: 'number' },
+                  longitude: { type: 'number' },
+                },
+              },
+            },
+          },
+        },
+        responses: { 200: okJson('Profil mis à jour'), ...errorResponses },
+      },
+    },
+    '/admin/vendeurs/{id}/statut': {
+      get: {
+        tags: ['Admin - Vendeurs'],
+        summary: 'Statut courant du vendeur',
+        security: bearerAuth,
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: okJson('Statut du vendeur', {
+            type: 'object',
+            properties: {
+              statut: { type: 'string', enum: ['actif', 'bloque'] },
+              isBlocked: { type: 'boolean' },
+            },
+          }),
+          ...errorResponses,
+        },
+      },
+    },
+    '/admin/vendeurs/{id}/bloquer': {
+      patch: {
+        tags: ['Admin - Vendeurs'],
+        summary: 'Bloquer un vendeur',
+        security: bearerAuth,
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: okJson('Vendeur bloqué', {
+            type: 'object',
+            properties: {
+              statut: { type: 'string', enum: ['bloque'] },
+              isBlocked: { type: 'boolean' },
+            },
+          }),
+          ...errorResponses,
+        },
+      },
+    },
+    '/admin/vendeurs/{id}/debloquer': {
+      patch: {
+        tags: ['Admin - Vendeurs'],
+        summary: 'Débloquer un vendeur',
+        security: bearerAuth,
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: okJson('Vendeur débloqué', {
+            type: 'object',
+            properties: {
+              statut: { type: 'string', enum: ['actif'] },
+              isBlocked: { type: 'boolean' },
+            },
+          }),
+          ...errorResponses,
+        },
+      },
+    },
+
     // ── ADMIN - CATÉGORIES ───────────────────────────────────────────────
     '/admin/categories': {
       get: {
@@ -1032,7 +1237,8 @@ module.exports = {
         parameters: [
           { name: 'page', in: 'query', schema: { type: 'integer' } },
           { name: 'limit', in: 'query', schema: { type: 'integer' } },
-          { name: 'categorieId', in: 'query', schema: { type: 'string' } },
+          { name: 'rayonId', in: 'query', schema: { type: 'string' } },
+          { name: 'sousRayonId', in: 'query', schema: { type: 'string' } },
           { name: 'isActive', in: 'query', schema: { type: 'boolean' } },
           { name: 'isFeatured', in: 'query', schema: { type: 'boolean' } },
           { name: 'search', in: 'query', schema: { type: 'string' } },
@@ -1054,14 +1260,15 @@ module.exports = {
             'multipart/form-data': {
               schema: {
                 type: 'object',
-                required: ['nom', 'prix', 'categorieId'],
+                required: ['nom', 'prix', 'rayonId', 'sousRayonId'],
                 properties: {
                   nom: { type: 'string' },
                   description: { type: 'string' },
                   prix: { type: 'number' },
                   prixPromo: { type: 'number' },
                   stock: { type: 'integer' },
-                  categorieId: { type: 'string' },
+                  rayonId: { type: 'string', format: 'uuid' },
+                  sousRayonId: { type: 'string', format: 'uuid' },
                   poids: { type: 'number' },
                   reference: { type: 'string' },
                   isFeatured: { type: 'boolean' },
@@ -1107,7 +1314,8 @@ module.exports = {
                   prix: { type: 'number' },
                   prixPromo: { type: 'number' },
                   stock: { type: 'integer' },
-                  categorieId: { type: 'string' },
+                  rayonId: { type: 'string', format: 'uuid' },
+                  sousRayonId: { type: 'string', format: 'uuid' },
                   isActive: { type: 'boolean' },
                   isFeatured: { type: 'boolean' },
                   images: { type: 'array', items: { type: 'string', format: 'binary' } },

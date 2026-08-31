@@ -20,6 +20,7 @@ const correlationId = require('./middlewares/correlationId.middleware');
 const auth = require('./middlewares/auth.middleware');
 const adminMiddleware = require('./middlewares/admin.middleware');
 const errorMiddleware = require('./middlewares/error.middleware');
+const motDePasseChange = require('./middlewares/motDePasseChange.middleware');
 
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
@@ -152,39 +153,92 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openapiSpec));
 app.use('/api/v1/auth', require('./routes/auth.routes'));
 
 // ── Routes admin (protégées + rate limiting) ──────────────────────────────
-app.use('/api/v1/admin', adminLimiter, auth, adminMiddleware, require('./routes/admin/index'));
+// `motDePasseChange` suit `auth` partout : un compte encore sur son mot de
+// passe temporaire est refuse cote serveur, quelle que soit l'interface.
+app.use(
+  '/api/v1/admin',
+  adminLimiter,
+  auth,
+  motDePasseChange,
+  adminMiddleware,
+  require('./routes/admin/index')
+);
 
 // ── Routes vendeur (authentifiées + rate limiting) ────────────────────────
-app.use('/api/v1/vendeur', authenticatedLimiter, auth, require('./routes/vendeur/index'));
+app.use(
+  '/api/v1/vendeur',
+  authenticatedLimiter,
+  auth,
+  motDePasseChange,
+  require('./routes/vendeur/index')
+);
 
 // ── Routes client (publiques + certaines authentifiées) ───────────────────
 app.use('/api/v1/produits', require('./routes/client/produit.route'));
 app.use('/api/v1/categories', require('./routes/client/categorie.route'));
-app.use('/api/v1/panier', authenticatedLimiter, auth, require('./routes/client/panier.route'));
-app.use('/api/v1/commandes', authenticatedLimiter, auth, require('./routes/client/commande.route'));
-app.use('/api/v1/paiements', authenticatedLimiter, auth, require('./routes/client/paiement.route'));
+app.use(
+  '/api/v1/panier',
+  authenticatedLimiter,
+  auth,
+  motDePasseChange,
+  require('./routes/client/panier.route')
+);
+app.use(
+  '/api/v1/commandes',
+  authenticatedLimiter,
+  auth,
+  motDePasseChange,
+  require('./routes/client/commande.route')
+);
+app.use(
+  '/api/v1/paiements',
+  authenticatedLimiter,
+  auth,
+  motDePasseChange,
+  require('./routes/client/paiement.route')
+);
 app.use(
   '/api/v1/notifications',
   authenticatedLimiter,
   auth,
+  motDePasseChange,
   require('./routes/client/notification.route')
 );
 app.use(
   '/api/v1/device-token',
   authenticatedLimiter,
   auth,
+  motDePasseChange,
   require('./routes/client/deviceToken.route')
 );
 app.use('/api/v1/avis', require('./routes/client/avis.route'));
-app.use('/api/v1/profile', mutationLimiter, auth, require('./routes/client/profil.route'));
+app.use(
+  '/api/v1/profile',
+  mutationLimiter,
+  auth,
+  motDePasseChange,
+  require('./routes/client/profil.route')
+);
 app.use('/api/v1/bannieres', require('./routes/client/banniere.route'));
 app.use('/api/v1/promotions', require('./routes/client/promotion.route'));
 app.use('/api/v1/frais-livraisons', require('./routes/client/frais-livraison.route'));
-app.use('/api/v1/favoris', authenticatedLimiter, auth, require('./routes/client/favori.route'));
+app.use(
+  '/api/v1/favoris',
+  authenticatedLimiter,
+  auth,
+  motDePasseChange,
+  require('./routes/client/favori.route')
+);
 app.use('/api/v1/boutiques', require('./routes/client/boutique.route'));
 app.use('/api/v1/rayons', require('./routes/client/rayon.route'));
 app.use('/api/v1/acheteurs', require('./routes/client/acheteur.route'));
-app.use('/api/v1/messages', authenticatedLimiter, auth, require('./routes/client/message.route'));
+app.use(
+  '/api/v1/messages',
+  authenticatedLimiter,
+  auth,
+  motDePasseChange,
+  require('./routes/client/message.route')
+);
 app.use(
   '/api/v1/suppression-compte',
   suppressionCompteLimiter,

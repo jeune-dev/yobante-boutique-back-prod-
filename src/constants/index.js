@@ -39,6 +39,14 @@ const STATUT_VALIDATION_PRODUIT = Object.freeze({
   REJETE: 'rejete',
 });
 
+// Statut d'un compte vendeur. Le circuit de validation en deux etapes a ete
+// retire : un vendeur cree par un administrateur est actif immediatement, et
+// seul un blocage explicite le desactive.
+const STATUT_VENDEUR = Object.freeze({
+  ACTIF: 'actif',
+  BLOQUE: 'bloque',
+});
+
 const SECTION_PROMOTION = Object.freeze({
   NOS_PROMOS_DU_MOMENT: 'nos_promos_du_moment',
   A_NE_PAS_RATER: 'a_ne_pas_rater',
@@ -78,6 +86,7 @@ module.exports = {
   STATUT_PAIEMENT,
   METHODE_PAIEMENT,
   STATUT_VALIDATION_PRODUIT,
+  STATUT_VENDEUR,
   SECTION_PROMOTION,
   TYPE_OTP,
   FRAIS_LIVRAISON_DEFAUT,

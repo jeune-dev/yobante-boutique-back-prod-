@@ -1,27 +1,31 @@
 const { Op } = require('sequelize');
-const { Produit, Categorie, User, Rayon, SousRayon, ProfilVendeur } = require('../../models');
+const { Produit, User, Rayon, SousRayon, ProfilVendeur } = require('../../models');
+const { generateUniqueSlug } = require('../../utils/slugify');
+const paginate = require('../../utils/paginate');
+const logger = require('../../config/logger');
+const { uploadImage, deleteImage } = require('../r2.service');
+const { sendEmail } = require('../resend.service');
+const { STATUT_VALIDATION_PRODUIT } = require('../../constants');
+const NotificationService = require('../notification');
 
+/**
+ * Notifie le vendeur par email. N'échoue jamais : la décision sur le produit
+ * est déjà enregistrée, un email indisponible ne doit pas la faire remonter
+ * en erreur à l'administrateur.
+ */
 async function _sendProduitEmail(vendeurId, sujet, html) {
   try {
     const vendeur = await User.findByPk(vendeurId, { attributes: ['email'] });
     if (!vendeur) return;
-    const { Resend } = require('resend');
-    const resend = new Resend(process.env.RESEND_API_KEY);
-    await resend.emails.send({
-      from: process.env.RESEND_FROM || 'Yobante Boutique <noreply@yobante.com>',
-      to: vendeur.email,
-      subject: sujet,
-      html,
-    });
+
+    const envoi = await sendEmail({ to: vendeur.email, subject: sujet, html });
+    if (!envoi.success) {
+      logger.error('[Produit] Email non envoyé', { vendeurId, error: envoi.error });
+    }
   } catch (err) {
-    require('../config/logger').error('[Produit] Email non envoyé', { error: err.message });
+    logger.error('[Produit] Email non envoyé', { vendeurId, error: err.message });
   }
 }
-const { generateUniqueSlug } = require('../../utils/slugify');
-const paginate = require('../../utils/paginate');
-const { uploadImage, deleteImage } = require('../r2.service');
-const { STATUT_VALIDATION_PRODUIT } = require('../../constants');
-const NotificationService = require('../notification');
 
 class GestionProduitService {
   /**
@@ -51,9 +55,6 @@ class GestionProduitService {
   }
 
   static async createProduit(data, files = []) {
-    const categorie = await Categorie.findByPk(data.categorieId);
-    if (!categorie) return { success: false, message: 'Catégorie introuvable' };
-
     const erreurRangement = await GestionProduitService._verifierRangement(
       data.rayonId,
       data.sousRayonId
@@ -77,11 +78,6 @@ class GestionProduitService {
   static async updateProduit(id, data, files = []) {
     const produit = await Produit.findByPk(id);
     if (!produit) return { success: false, message: 'Produit introuvable' };
-
-    if (data.categorieId) {
-      const categorie = await Categorie.findByPk(data.categorieId);
-      if (!categorie) return { success: false, message: 'Catégorie introuvable' };
-    }
 
     if ('rayonId' in data || 'sousRayonId' in data) {
       // Une édition peut ne toucher qu'un des deux champs : on complète avec la
@@ -125,7 +121,6 @@ class GestionProduitService {
   static async getProduitById(id) {
     const produit = await Produit.findByPk(id, {
       include: [
-        { model: Categorie, as: 'categorie' },
         { model: Rayon, as: 'rayon', attributes: ['id', 'nom'], required: false },
         { model: SousRayon, as: 'sousRayon', attributes: ['id', 'nom'], required: false },
         // La fiche sert à instruire une demande de publication : l'admin doit
@@ -153,7 +148,6 @@ class GestionProduitService {
   static async getAllProduits({
     page,
     limit,
-    categorieId,
     rayonId,
     sousRayonId,
     statutValidation,
@@ -167,7 +161,6 @@ class GestionProduitService {
     const { page: p, limit: l, offset } = paginate(page, limit);
 
     const where = {};
-    if (categorieId) where.categorieId = categorieId;
     if (rayonId) where.rayonId = rayonId;
     if (sousRayonId) where.sousRayonId = sousRayonId;
     // Sans ce filtre, l'écran des demandes de publication listait tout le
@@ -191,7 +184,8 @@ class GestionProduitService {
     const { count, rows } = await Produit.findAndCountAll({
       where,
       include: [
-        { model: Categorie, as: 'categorie' },
+        { model: Rayon, as: 'rayon', attributes: ['id', 'nom'], required: false },
+        { model: SousRayon, as: 'sousRayon', attributes: ['id', 'nom'], required: false },
         // L'écran des demandes affiche qui a soumis le produit. Le nom de la
         // boutique vit sur le profil vendeur, pas sur le compte.
         {
@@ -349,10 +343,7 @@ class GestionProduitService {
           STATUT_VALIDATION_PRODUIT.VALIDE_STEP1,
         ],
       },
-      include: [
-        { model: Categorie, as: 'categorie' },
-        { model: User, as: 'vendeur', attributes: ['id', 'nom', 'prenom', 'email'] },
-      ],
+      include: [{ model: User, as: 'vendeur', attributes: ['id', 'nom', 'prenom', 'email'] }],
       order: [['createdAt', 'ASC']],
     });
     return { success: true, produits: rows, total: count };

@@ -69,7 +69,7 @@ class JWTUtils {
 
     // 2. Sinon: vérifier en DB (sécurité, juste au cas où)
     const user = await User.findByPk(userId, {
-      attributes: ['id', 'isActive', 'role'],
+      attributes: ['id', 'isActive', 'role', 'mustChangePassword'],
     });
 
     if (!user || !user.isActive) {
@@ -81,7 +81,16 @@ class JWTUtils {
     }
 
     // 3. Cacher le résultat pour 30 secondes
-    const userObj = { id: user.id, role: user.role, isActive: user.isActive };
+    // `mustChangePassword` fait partie du profil mis en cache : le middleware
+    // qui bloque les comptes à mot de passe temporaire le lit sans requête
+    // supplémentaire. Le cache est purgé explicitement au changement de mot
+    // de passe pour que la levée du blocage soit immédiate.
+    const userObj = {
+      id: user.id,
+      role: user.role,
+      isActive: user.isActive,
+      mustChangePassword: user.mustChangePassword,
+    };
     cache.set(cacheKey, userObj, CACHE_TTL);
 
     return userObj;

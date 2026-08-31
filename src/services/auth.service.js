@@ -8,6 +8,17 @@ const { Op } = require('sequelize');
 const { User, RefreshToken, UserOtp, Adresse, sequelize } = require('../models');
 const { bcryptConfig, jwtConfig } = require('../config/security');
 const { sendResetPasswordEmail } = require('../utils/mailer');
+const cache = require('../config/cache');
+
+/**
+ * Purge le profil mis en cache par les middlewares d'authentification.
+ * Sans cela, un utilisateur qui vient de changer son mot de passe temporaire
+ * resterait bloque par `motDePasseChange` jusqu'a expiration du TTL.
+ */
+function _purgerCacheAuth(userId) {
+  cache.del(`auth:${userId}`);
+  cache.del(`ADMIN:${userId}`);
+}
 
 function _generateOtp(length = 8) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -321,6 +332,7 @@ class AuthService {
 
     const hashedPassword = await bcrypt.hash(nouveauPassword, bcryptConfig.saltRounds);
     await user.update({ password: hashedPassword, mustChangePassword: false });
+    _purgerCacheAuth(user.id);
 
     return { success: true, message: 'Mot de passe changé avec succès' };
   }
@@ -340,13 +352,21 @@ class AuthService {
     const t = await sequelize.transaction();
     try {
       const hashedPassword = await bcrypt.hash(newPassword, bcryptConfig.saltRounds);
-      await user.update({ password: hashedPassword }, { transaction: t });
+      // `mustChangePassword` retombe aussi par ce chemin : un compte cree par
+      // l'administration qui passe par le changement de mot de passe classique
+      // resterait sinon bloque a vie par `motDePasseChange`, avec pourtant un
+      // mot de passe personnel.
+      await user.update(
+        { password: hashedPassword, mustChangePassword: false },
+        { transaction: t }
+      );
       await RefreshToken.update(
         { revoked: true },
         { where: { userId: user.id, revoked: false }, transaction: t }
       );
 
       await t.commit();
+      _purgerCacheAuth(user.id);
       return { success: true, message: 'Mot de passe modifié avec succès.' };
     } catch (err) {
       await t.rollback();

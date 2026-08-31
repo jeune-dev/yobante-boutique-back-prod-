@@ -42,6 +42,15 @@ class SimpleLRUCache {
   }
 
   /**
+   * Invalider une entrée précise.
+   * Utilisé quand un changement d'état doit être visible immédiatement
+   * (blocage d'un compte, changement de mot de passe) sans attendre le TTL.
+   */
+  del(key) {
+    return this.cache.delete(key);
+  }
+
+  /**
    * Vider complètement le cache
    */
   clear() {
