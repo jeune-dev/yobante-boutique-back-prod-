@@ -27,6 +27,8 @@ const createProduitSchema = Joi.object({
   poids: Joi.number().min(0).allow(null).optional(),
   reference: Joi.string().trim().allow('', null).optional(),
   isFeatured: Joi.boolean().optional(),
+  venduAuPoids: Joi.boolean().optional(),
+  etat: Joi.string().valid('neuf', 'reconditionne').optional(),
 });
 
 const updateProduitSchema = Joi.object({
@@ -45,6 +47,8 @@ const updateProduitSchema = Joi.object({
   reference: Joi.string().trim().allow('', null).optional(),
   isFeatured: Joi.boolean().optional(),
   isActive: Joi.boolean().optional(),
+  venduAuPoids: Joi.boolean().optional(),
+  etat: Joi.string().valid('neuf', 'reconditionne').optional(),
 }).min(1);
 
 const updateStockSchema = Joi.object({

@@ -91,6 +91,15 @@ const Produit = sequelize.define(
       unique: true,
       allowNull: true,
     },
+    venduAuPoids: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      comment: 'Si vrai, le champ prix représente le prix au kg',
+    },
+    etat: {
+      type: DataTypes.ENUM('neuf', 'reconditionne'),
+      defaultValue: 'neuf',
+    },
     // Le rangement du catalogue se fait désormais par rayon / sous-rayon.
     // La colonne reste en base pour l'historique et la navigation client
     // existante, mais n’est plus renseignée à la création d'un produit.
