@@ -135,7 +135,14 @@ class AuthService {
   }
 
   // -------------------- CONNEXION --------------------
-  static async login({ identifiant, password }) {
+  /**
+   * `roleAttendu` (optionnel) restreint la connexion à un rôle précis : le
+   * dashboard web ne doit ouvrir sa session qu'aux administrateurs, alors que
+   * le mobile accueille clients et vendeurs. Le refus est signalé APRÈS la
+   * vérification du mot de passe, pour ne pas révéler le rôle d'un compte à
+   * qui ne connaît pas ses identifiants.
+   */
+  static async login({ identifiant, password, roleAttendu = null }) {
     // ✅ SÉCURITÉ: Simple check sans ReDoS (vrai validation via Joi middleware)
     const isEmail = identifiant.includes('@');
     const user = await User.findOne({
@@ -152,6 +159,13 @@ class AuthService {
 
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return { success: false, error: 'Identifiant ou mot de passe incorrect' };
+
+    if (roleAttendu && user.role !== roleAttendu)
+      return {
+        success: false,
+        code: 'ROLE_NON_AUTORISE',
+        error: 'Accès réservé aux administrateurs Yobante.',
+      };
 
     const accessToken = _generateAccessToken(user);
     const refreshToken = _generateRefreshToken(user);

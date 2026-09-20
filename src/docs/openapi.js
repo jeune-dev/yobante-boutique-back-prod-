@@ -300,6 +300,24 @@ module.exports = {
         },
       },
     },
+    '/auth/admin/login': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Connexion au dashboard admin (rôle ADMIN uniquement, 403 sinon)',
+        requestBody: jsonBody({
+          type: 'object',
+          required: ['identifiant', 'password'],
+          properties: { identifiant: { type: 'string' }, password: { type: 'string' } },
+        }),
+        responses: {
+          200: okJson('Connecté', {
+            type: 'object',
+            properties: { token: { type: 'string' }, refreshToken: { type: 'string' }, user: User },
+          }),
+          ...errorResponses,
+        },
+      },
+    },
     '/auth/refresh': {
       post: {
         tags: ['Auth'],

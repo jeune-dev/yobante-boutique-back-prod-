@@ -2,6 +2,12 @@
 // routes/admin/index.js   — Préfixe : /api/admin
 // ─────────────────────────────────────────────────────────────
 const router = require('express').Router();
+const sessionCtrl = require('../../controllers/admin/session.controller');
+
+// Session du dashboard : le front l'appelle à chaque ouverture pour vérifier,
+// côté serveur, que le jeton stocké appartient bien à un administrateur actif
+// (la chaîne auth → motDePasseChange → adminMiddleware de app.js s'applique).
+router.get('/me', sessionCtrl.me);
 
 router.use('/categories', require('./categorie.route'));
 router.use('/produits', require('./produit.route'));

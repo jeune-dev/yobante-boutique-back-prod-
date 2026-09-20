@@ -181,6 +181,60 @@ describe('AuthService', () => {
 
       expect(result.success).toBe(false);
     });
+
+    // Dashboard web : `roleAttendu: 'ADMIN'` ferme la porte aux vendeurs et
+    // clients, même avec de bons identifiants.
+    it('roleAttendu ADMIN : refuse un compte CLIENT avec un code dédié', async () => {
+      const { validUser } = userFixture;
+      mockUser.findOne.mockResolvedValue(validUser);
+      bcrypt.compare.mockResolvedValue(true);
+
+      const result = await AuthService.login({
+        identifiant: validUser.email,
+        password: 'password123',
+        roleAttendu: 'ADMIN'
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.code).toBe('ROLE_NON_AUTORISE');
+      // Aucune session ne doit avoir été ouverte.
+      expect(mockRefreshToken.create).not.toHaveBeenCalled();
+    });
+
+    it('roleAttendu ADMIN : ne révèle pas le rôle si le mot de passe est faux', async () => {
+      const { validUser } = userFixture;
+      mockUser.findOne.mockResolvedValue(validUser);
+      bcrypt.compare.mockResolvedValue(false);
+
+      const result = await AuthService.login({
+        identifiant: validUser.email,
+        password: 'wrongpassword',
+        roleAttendu: 'ADMIN'
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.code).toBeUndefined();
+    });
+
+    it('roleAttendu ADMIN : connecte un administrateur', async () => {
+      const { validAdmin } = userFixture;
+      mockSequelize.transaction.mockResolvedValue(mockTransaction);
+      mockUser.findOne.mockResolvedValue(validAdmin);
+      bcrypt.compare.mockResolvedValue(true);
+      mockRefreshToken.create.mockResolvedValue({});
+      mockRefreshToken.destroy.mockResolvedValue(undefined);
+      jwt.sign.mockReturnValueOnce('access-token').mockReturnValueOnce('refresh-token');
+      jwt.decode.mockReturnValue({ exp: Math.floor(Date.now() / 1000) + 3600 });
+
+      const result = await AuthService.login({
+        identifiant: validAdmin.email,
+        password: 'password123',
+        roleAttendu: 'ADMIN'
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.token).toBe('access-token');
+    });
   });
 
   describe('refresh', () => {

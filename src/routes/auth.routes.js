@@ -20,6 +20,8 @@ const {
 
 router.post('/register', registerLimiter, validate(registerSchema), ctrl.register);
 router.post('/login', authLimiter, validate(loginSchema), ctrl.login);
+// Dashboard web : connexion réservée aux administrateurs (403 pour les autres rôles).
+router.post('/admin/login', authLimiter, validate(loginSchema), ctrl.loginAdmin);
 router.post('/refresh', authLimiter, validate(refreshSchema), ctrl.refresh);
 router.post('/logout', validate(logoutSchema), ctrl.logout);
 

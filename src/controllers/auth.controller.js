@@ -5,8 +5,9 @@
 const AuthService = require('../services/auth.service');
 const asyncHandler = require('../utils/asyncHandler');
 const { ok, created } = require('../utils/response');
-const { BadRequestError, UnauthorizedError } = require('../errors/AppError');
+const { BadRequestError, UnauthorizedError, ForbiddenError } = require('../errors/AppError');
 const formatUser = require('../utils/formatUser');
+const { ROLES } = require('../constants');
 
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -65,6 +66,39 @@ exports.login = asyncHandler(async (req, res) => {
     res,
     {
       token: result.token,
+      user: formatUser(result.user),
+      mustChangePassword: result.mustChangePassword,
+    },
+    result.message
+  );
+});
+
+/**
+ * POST /api/auth/admin/login
+ * Connexion réservée au dashboard d'administration : seul un compte ADMIN
+ * obtient une session. Un vendeur ou un client, même avec des identifiants
+ * valides, est refusé en 403 — il se connecte depuis l'application mobile.
+ */
+exports.loginAdmin = asyncHandler(async (req, res) => {
+  const { identifiant, password } = req.body;
+
+  if (!identifiant) throw new BadRequestError('Email ou téléphone requis');
+  if (!password) throw new BadRequestError('Mot de passe requis');
+
+  const result = await AuthService.login({ identifiant, password, roleAttendu: ROLES.ADMIN });
+
+  if (!result.success) {
+    if (result.code === 'ROLE_NON_AUTORISE') throw new ForbiddenError(result.error);
+    throw new BadRequestError(result.error || result.message);
+  }
+
+  res.cookie(REFRESH_COOKIE, result.refreshToken, refreshCookieOptions);
+
+  return ok(
+    res,
+    {
+      token: result.token,
+      refreshToken: result.refreshToken,
       user: formatUser(result.user),
       mustChangePassword: result.mustChangePassword,
     },
