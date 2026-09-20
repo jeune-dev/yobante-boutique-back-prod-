@@ -33,6 +33,15 @@ const Avis = sequelize.define(
       type: DataTypes.BOOLEAN,
       defaultValue: false,
     },
+    // Réponse publique du vendeur du produit (facultative).
+    reponseVendeur: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    reponduAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
     createdAt: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,

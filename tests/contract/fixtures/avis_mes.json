@@ -1,0 +1,36 @@
+{
+  "requete": {
+    "methode": "GET",
+    "chemin": "/avis",
+    "query": {},
+    "corps": null,
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Avis récupérés",
+    "data": {
+      "avis": [
+        {
+          "id": "50000000-0000-4000-8000-000000000001",
+          "userId": "10000000-0000-4000-8000-000000000001",
+          "produitId": "20000000-0000-4000-8000-000000000001",
+          "note": 4,
+          "commentaire": "Très bon produit",
+          "isApproved": true,
+          "reponseVendeur": null,
+          "reponduAt": null,
+          "produit": {
+            "id": "20000000-0000-4000-8000-000000000001",
+            "nom": "Huile de palme",
+            "slug": "huile-de-palme",
+            "noteMoyenne": "4.50",
+            "images": [
+              "https://cdn.exemple/p.jpg"
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

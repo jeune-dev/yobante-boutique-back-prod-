@@ -42,6 +42,7 @@ const checkMagicBytes = (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: `Le fichier "${file.originalname}" est corrompu ou son contenu ne correspond pas à son type déclaré.`,
+        data: null,
       });
     }
     // Pour WEBP: vixer aussi les octets 8-11 = 'W','E','B','P'
@@ -49,7 +50,9 @@ const checkMagicBytes = (req, res, next) => {
       const webpSig = [0x57, 0x45, 0x42, 0x50];
       const valid = webpSig.every((b, i) => file.buffer[i + 8] === b);
       if (!valid) {
-        return res.status(400).json({ success: false, message: 'Fichier WEBP invalide.' });
+        return res
+          .status(400)
+          .json({ success: false, message: 'Fichier WEBP invalide.', data: null });
       }
     }
   }

@@ -81,7 +81,7 @@ describe('POST /api/v1/auth/admin/login', () => {
     expect(res.status).toBe(403);
     expect(res.body.success).toBe(false);
     expect(res.body.message).toMatch(/réservé aux administrateurs/i);
-    expect(res.body.data).toBeUndefined();
+    expect(res.body.data).toBeNull(); // enveloppe uniforme : data:null en erreur
   });
 
   it('mot de passe faux : 400 générique, sans révéler le rôle', async () => {

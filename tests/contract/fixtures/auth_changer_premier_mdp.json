@@ -1,0 +1,18 @@
+{
+  "requete": {
+    "methode": "POST",
+    "chemin": "/auth/changer-premier-mdp",
+    "query": {},
+    "corps": {
+      "ancienPassword": "Secret123",
+      "nouveauPassword": "Nouveau123",
+      "confirmPassword": "Nouveau123"
+    },
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Mot de passe changé avec succès",
+    "data": {}
+  }
+}

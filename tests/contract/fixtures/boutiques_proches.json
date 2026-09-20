@@ -1,0 +1,34 @@
+{
+  "requete": {
+    "methode": "GET",
+    "chemin": "/acheteurs/boutiques-proches",
+    "query": {
+      "lat": "14.7",
+      "lng": "-17.4",
+      "rayon": "5"
+    },
+    "corps": null,
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Boutiques proches",
+    "data": {
+      "boutiques": [
+        {
+          "id": "00000000-0000-4000-8000-0000000000aa",
+          "nom": "Chez Moussa",
+          "description": "Épicerie",
+          "localisation": "Marché Sandaga",
+          "telephone": "+221765556677",
+          "logo": null,
+          "heure_ouverture": null,
+          "heure_fermeture": null,
+          "vendeur": {
+            "id": "10000000-0000-4000-8000-000000000002"
+          }
+        }
+      ]
+    }
+  }
+}

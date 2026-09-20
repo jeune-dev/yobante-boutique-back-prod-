@@ -1,0 +1,16 @@
+{
+  "requete": {
+    "methode": "PATCH",
+    "chemin": "/notifications/toutes-lues",
+    "query": {},
+    "corps": null,
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "1 notification(s) marquée(s) comme lue(s)",
+    "data": {
+      "total": 1
+    }
+  }
+}

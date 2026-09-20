@@ -1,0 +1,69 @@
+{
+  "requete": {
+    "methode": "GET",
+    "chemin": "/vendeur/commandes",
+    "query": {
+      "statut": "en_attente"
+    },
+    "corps": null,
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Mes commandes",
+    "data": {
+      "commandes": [
+        {
+          "id": "30000000-0000-4000-8000-000000000001",
+          "reference": "CMD-2026-0001",
+          "userId": "10000000-0000-4000-8000-000000000001",
+          "adresseId": "40000000-0000-4000-8000-000000000001",
+          "statut": "en_attente",
+          "fraisLivraison": "0.00",
+          "note": "Sonner deux fois",
+          "dateLivraisonSouhaitee": "2026-10-01",
+          "noteAdmin": "noteAdmin-exemple",
+          "motifRejet": "motifRejet-exemple",
+          "user": {
+            "id": "10000000-0000-4000-8000-000000000001",
+            "nom": "Sow",
+            "prenom": "Fatou",
+            "telephone": "+221771234567"
+          },
+          "adresse": {
+            "id": "40000000-0000-4000-8000-000000000001",
+            "rue": "Sicap Liberté 6",
+            "ville": "Dakar"
+          },
+          "items": [
+            {
+              "id": "00000000-0000-4000-8000-0000000000aa",
+              "commandeId": "30000000-0000-4000-8000-000000000001",
+              "produitId": "20000000-0000-4000-8000-000000000001",
+              "quantite": 2,
+              "prixUnitaire": "1500.00",
+              "sousTotal": "3000.00",
+              "createdAt": "2026-09-20T10:00:00.000Z",
+              "produit": {
+                "id": "20000000-0000-4000-8000-000000000001",
+                "nom": "Huile de palme",
+                "slug": "huile-de-palme",
+                "vendeurId": "10000000-0000-4000-8000-000000000002",
+                "images": [
+                  "https://cdn.exemple/p.jpg"
+                ]
+              }
+            }
+          ],
+          "montantVendeur": 3000
+        }
+      ],
+      "pagination": {
+        "total": 1,
+        "totalPages": 1,
+        "page": 1,
+        "limit": 20
+      }
+    }
+  }
+}

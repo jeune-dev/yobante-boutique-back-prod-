@@ -1,0 +1,26 @@
+{
+  "requete": {
+    "methode": "GET",
+    "chemin": "/promotions/blocs",
+    "query": {},
+    "corps": null,
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Blocs promo",
+    "data": {
+      "blocs": [
+        {
+          "id": "70000000-0000-4000-8000-000000000001",
+          "section": "nos_promos_du_moment",
+          "titre": "Sélection",
+          "sousTitre": "sousTitre-exemple",
+          "image": null,
+          "isActive": true,
+          "ordre": 0
+        }
+      ]
+    }
+  }
+}

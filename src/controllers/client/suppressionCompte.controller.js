@@ -7,7 +7,7 @@ exports.creer = asyncHandler(async (req, res) => {
   await SuppressionCompteService.creerDemande({ email, objet });
   return created(
     res,
-    null,
+    {},
     'Votre demande a bien été enregistrée. Nous la traiterons dans les meilleurs délais.'
   );
 });

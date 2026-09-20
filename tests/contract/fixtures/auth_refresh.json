@@ -1,0 +1,19 @@
+{
+  "requete": {
+    "methode": "POST",
+    "chemin": "/auth/refresh",
+    "query": {},
+    "corps": {
+      "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjEwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMSIsInR5cGUiOiJyZWZyZXNoIiwiaWF0IjoxNzg5OTM2NTQzLCJleHAiOjE3OTA1NDEzNDN9.sXNy2zTZy0xvu8N-yJiEiRkDcCvpytF9dnYNHAVff8k"
+    },
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Token renouvelé",
+    "data": {
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjEwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMSIsInJvbGUiOiJDTElFTlQiLCJpc0FjdGl2ZSI6dHJ1ZSwiaWF0IjoxNzg5OTM2NTQzLCJleHAiOjE3ODk5NDAxNDN9.mkoNOZ0rbh-uMJEwye2Tye316yTBVsvsFp4Xofoe0FE",
+      "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjEwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMSIsInR5cGUiOiJyZWZyZXNoIiwiaWF0IjoxNzg5OTM2NTQzLCJleHAiOjE3OTA1NDEzNDN9.sXNy2zTZy0xvu8N-yJiEiRkDcCvpytF9dnYNHAVff8k"
+    }
+  }
+}

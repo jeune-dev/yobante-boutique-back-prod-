@@ -1,0 +1,14 @@
+{
+  "requete": {
+    "methode": "GET",
+    "chemin": "/inexistant",
+    "query": {},
+    "corps": null,
+    "champs": null
+  },
+  "reponse": {
+    "success": false,
+    "message": "Route introuvable",
+    "data": null
+  }
+}

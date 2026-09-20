@@ -11,7 +11,7 @@ exports.getSections = asyncHandler(async (req, res) => {
 exports.getActives = asyncHandler(async (req, res) => {
   const result = await PromotionClientService.getActives();
   // Tableau renvoyé directement dans `data` (format attendu par l'app mobile).
-  return ok(res, result.promotions, 'Promotions actives');
+  return ok(res, { promotions: result.promotions }, 'Promotions actives');
 });
 
 /**
@@ -36,7 +36,7 @@ exports.getProduitsDuBloc = asyncHandler(async (req, res) => {
 
 exports.getGroupees = asyncHandler(async (req, res) => {
   const result = await PromotionClientService.getPromotionsGroupees();
-  return ok(res, result.promotions, 'Promotions récupérées');
+  return ok(res, { promotions: result.promotions }, 'Promotions récupérées');
 });
 
 exports.getSection = asyncHandler(async (req, res) => {

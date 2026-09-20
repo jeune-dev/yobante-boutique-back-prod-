@@ -102,7 +102,11 @@ const authenticatedRateLimitConfig = {
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => req.user?.id || req.ip,
-  message: { success: false, message: 'Trop de requêtes. Veuillez réessayer dans 15 minutes.' },
+  message: {
+    success: false,
+    message: 'Trop de requêtes. Veuillez réessayer dans 15 minutes.',
+    data: null,
+  },
 };
 
 // Authentification (login/register) — très strict
@@ -111,7 +115,11 @@ const authRateLimitConfig = {
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, message: 'Trop de tentatives. Veuillez réessayer dans 15 minutes.' },
+  message: {
+    success: false,
+    message: 'Trop de tentatives. Veuillez réessayer dans 15 minutes.',
+    data: null,
+  },
 };
 
 // Mutations sensibles (modifier/supprimer profil, changement mot de passe)
@@ -120,7 +128,11 @@ const mutationRateLimitConfig = {
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, message: 'Trop de requêtes. Veuillez réessayer dans 15 minutes.' },
+  message: {
+    success: false,
+    message: 'Trop de requêtes. Veuillez réessayer dans 15 minutes.',
+    data: null,
+  },
 };
 
 // Routes admin — modérément strict
@@ -129,7 +141,7 @@ const adminRateLimitConfig = {
   max: 200,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, message: 'Trop de requêtes admin. Veuillez réessayer.' },
+  message: { success: false, message: 'Trop de requêtes admin. Veuillez réessayer.', data: null },
 };
 
 // OTP email — anti-spam strict
@@ -141,6 +153,7 @@ const otpEmailRateLimitConfig = {
   message: {
     success: false,
     message: 'Trop de tentatives pour cet email. Réessayez dans 15 minutes.',
+    data: null,
   },
 };
 
@@ -153,6 +166,7 @@ const suppressionCompteRateLimitConfig = {
   message: {
     success: false,
     message: 'Trop de demandes envoyées. Réessayez dans 1 heure.',
+    data: null,
   },
 };
 

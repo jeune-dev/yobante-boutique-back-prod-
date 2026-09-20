@@ -1,0 +1,17 @@
+{
+  "requete": {
+    "methode": "POST",
+    "chemin": "/auth/login",
+    "query": {},
+    "corps": {
+      "identifiant": "fatou@exemple.com",
+      "password": "faux"
+    },
+    "champs": null
+  },
+  "reponse": {
+    "success": false,
+    "message": "Identifiant ou mot de passe incorrect",
+    "data": null
+  }
+}

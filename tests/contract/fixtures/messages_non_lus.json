@@ -1,0 +1,16 @@
+{
+  "requete": {
+    "methode": "GET",
+    "chemin": "/messages/non-lus",
+    "query": {},
+    "corps": null,
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Nombre de messages non lus",
+    "data": {
+      "nombre": 1
+    }
+  }
+}

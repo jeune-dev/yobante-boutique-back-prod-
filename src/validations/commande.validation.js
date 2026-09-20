@@ -15,6 +15,12 @@ const passerCommandeSchema = Joi.object({
     )
     .optional(),
   note: Joi.string().trim().max(500).allow('', null).optional(),
+  // `YYYY-MM-DD` ; le mobile l'envoie sans heure.
+  dateLivraisonSouhaitee: Joi.string()
+    .pattern(/^\d{4}-\d{2}-\d{2}$/)
+    .allow(null)
+    .optional()
+    .messages({ 'string.pattern.base': 'Date de livraison invalide (AAAA-MM-JJ attendu)' }),
 });
 
 const rejeterCommandeSchema = Joi.object({

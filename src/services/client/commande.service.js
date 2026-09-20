@@ -35,7 +35,10 @@ class CommandeService {
    * Un advisory lock PostgreSQL par userId empêche deux commandes simultanées
    * du même utilisateur. La décrémention de stock est atomique (WHERE stock >= quantite).
    */
-  static async passerCommande(userId, { adresseId, note, methode, items = [] }) {
+  static async passerCommande(
+    userId,
+    { adresseId, note, methode, items = [], dateLivraisonSouhaitee = null }
+  ) {
     // ── Advisory lock : un seul passage de commande à la fois par utilisateur ──
     const lockKey = await acquire(`commande:${userId}`);
     try {
@@ -90,6 +93,7 @@ class CommandeService {
             montantTotal: round2(lignesTotal + fraisLivraison),
             fraisLivraison,
             note,
+            dateLivraisonSouhaitee,
           },
           { transaction: t }
         );

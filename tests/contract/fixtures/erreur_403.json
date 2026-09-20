@@ -1,0 +1,14 @@
+{
+  "requete": {
+    "methode": "GET",
+    "chemin": "/vendeur/produits",
+    "query": {},
+    "corps": null,
+    "champs": null
+  },
+  "reponse": {
+    "success": false,
+    "message": "Accès réservé aux vendeurs",
+    "data": null
+  }
+}

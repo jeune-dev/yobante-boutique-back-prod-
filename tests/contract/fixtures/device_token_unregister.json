@@ -1,0 +1,16 @@
+{
+  "requete": {
+    "methode": "POST",
+    "chemin": "/device-token/unregister",
+    "query": {},
+    "corps": {
+      "token": "fcm"
+    },
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Appareil retiré",
+    "data": {}
+  }
+}

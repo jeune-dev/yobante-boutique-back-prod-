@@ -18,7 +18,16 @@ exports.create = asyncHandler(async (req, res) => {
 });
 
 /**
- * GET /api/avis/me (protégé)
+ * GET /api/avis/produit/:produitId (public)
+ * Avis approuvés d'un produit
+ */
+exports.getParProduit = asyncHandler(async (req, res) => {
+  const result = await AvisService.getAvisProduit(req.params.produitId);
+  return ok(res, { avis: result.avis }, 'Avis du produit');
+});
+
+/**
+ * GET /api/avis (protégé)
  * Récupérer mes avis
  */
 exports.getMes = asyncHandler(async (req, res) => {

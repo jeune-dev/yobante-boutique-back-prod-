@@ -41,6 +41,7 @@ const registerLimiter = rateLimit({
   message: {
     success: false,
     message: 'Trop de créations de compte depuis cette adresse IP. Réessayez dans 1 heure.',
+    data: null,
   },
 });
 
@@ -55,6 +56,7 @@ const forgotPasswordLimiter = rateLimit({
   message: {
     success: false,
     message: 'Trop de demandes de réinitialisation. Réessayez dans 1 heure.',
+    data: null,
   },
 });
 
@@ -66,7 +68,7 @@ const uploadLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => req.user?.id || req.ip,
-  message: { success: false, message: "Trop d'uploads. Réessayez dans 10 minutes." },
+  message: { success: false, message: "Trop d'uploads. Réessayez dans 10 minutes.", data: null },
 });
 
 // ── OTP EMAIL LIMITER ─────────────────────────────────────────────────────────────

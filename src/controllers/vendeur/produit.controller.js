@@ -11,7 +11,7 @@ exports.soumettre = asyncHandler(async (req, res) => {
 
 exports.getMesProduits = asyncHandler(async (req, res) => {
   const result = await VendeurProduitService.getMesProduits(req.user.id, req.query);
-  return ok(res, result, 'Mes produits');
+  return ok(res, { produits: result.produits, pagination: result.pagination }, 'Mes produits');
 });
 
 exports.getOne = asyncHandler(async (req, res) => {

@@ -5,7 +5,8 @@ const { NotFoundError } = require('../../errors/AppError');
 
 exports.getMesCommandes = asyncHandler(async (req, res) => {
   const result = await VendeurCommandeService.getMesCommandes(req.user.id, req.query);
-  return ok(res, result, 'Mes commandes');
+  // Seules les données : `success` du service ne doit pas fuir dans `data`.
+  return ok(res, { commandes: result.commandes, pagination: result.pagination }, 'Mes commandes');
 });
 
 exports.getVentes = asyncHandler(async (req, res) => {

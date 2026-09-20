@@ -1,0 +1,24 @@
+{
+  "requete": {
+    "methode": "GET",
+    "chemin": "/messages/10000000-0000-4000-8000-000000000002",
+    "query": {},
+    "corps": null,
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Historique",
+    "data": {
+      "messages": [
+        {
+          "id": "80000000-0000-4000-8000-000000000001",
+          "expediteurId": "10000000-0000-4000-8000-000000000001",
+          "destinataireId": "10000000-0000-4000-8000-000000000002",
+          "contenu": "Bonjour",
+          "lu": false
+        }
+      ]
+    }
+  }
+}

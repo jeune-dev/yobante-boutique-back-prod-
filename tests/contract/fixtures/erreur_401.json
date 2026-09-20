@@ -1,0 +1,14 @@
+{
+  "requete": {
+    "methode": "GET",
+    "chemin": "/profile",
+    "query": {},
+    "corps": null,
+    "champs": null
+  },
+  "reponse": {
+    "success": false,
+    "message": "Token manquant ou invalide",
+    "data": null
+  }
+}

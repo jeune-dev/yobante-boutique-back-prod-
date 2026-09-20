@@ -1,0 +1,22 @@
+{
+  "requete": {
+    "methode": "GET",
+    "chemin": "/vendeur/produits/stats",
+    "query": {},
+    "corps": null,
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Statistiques",
+    "data": {
+      "stats": {
+        "total": 1,
+        "valides": 1,
+        "enAttente": 1,
+        "rejetes": 1,
+        "ruptureStock": 1
+      }
+    }
+  }
+}

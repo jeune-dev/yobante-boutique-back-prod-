@@ -1,0 +1,17 @@
+{
+  "requete": {
+    "methode": "POST",
+    "chemin": "/device-token/register",
+    "query": {},
+    "corps": {
+      "token": "fcm",
+      "plateforme": "android"
+    },
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Appareil enregistré",
+    "data": {}
+  }
+}

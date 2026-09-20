@@ -59,13 +59,15 @@ exports.login = asyncHandler(async (req, res) => {
 
   if (!result.success) throw new BadRequestError(result.error || result.message);
 
-  // Refresh token → cookie HttpOnly (inaccessible à JS)
+  // Refresh token → cookie HttpOnly (navigateur) ET corps de réponse : le
+  // mobile n'a pas de jarre à cookies, il le garde en stockage sécurisé.
   res.cookie(REFRESH_COOKIE, result.refreshToken, refreshCookieOptions);
 
   return ok(
     res,
     {
       token: result.token,
+      refreshToken: result.refreshToken,
       user: formatUser(result.user),
       mustChangePassword: result.mustChangePassword,
     },
@@ -123,10 +125,12 @@ exports.refresh = asyncHandler(async (req, res) => {
     throw new UnauthorizedError(result.error);
   }
 
-  // Rotation du refresh token → nouveau cookie HttpOnly
+  // Rotation du refresh token → nouveau cookie HttpOnly, et nouveau jeton
+  // dans le corps pour le mobile (l'ancien est révoqué : sans lui, le second
+  // rafraîchissement échouerait).
   res.cookie(REFRESH_COOKIE, result.refreshToken, refreshCookieOptions);
 
-  return ok(res, { token: result.token }, 'Token renouvelé');
+  return ok(res, { token: result.token, refreshToken: result.refreshToken }, 'Token renouvelé');
 });
 
 /**

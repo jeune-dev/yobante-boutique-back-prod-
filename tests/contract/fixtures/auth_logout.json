@@ -1,0 +1,16 @@
+{
+  "requete": {
+    "methode": "POST",
+    "chemin": "/auth/logout",
+    "query": {},
+    "corps": {
+      "refreshToken": "x"
+    },
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Déconnexion réussie",
+    "data": {}
+  }
+}

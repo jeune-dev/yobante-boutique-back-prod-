@@ -47,6 +47,11 @@ const Commande = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: true,
     },
+    // Date de livraison souhaitée par le client (choisie au checkout mobile).
+    dateLivraisonSouhaitee: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+    },
     noteAdmin: {
       type: DataTypes.TEXT,
       allowNull: true,

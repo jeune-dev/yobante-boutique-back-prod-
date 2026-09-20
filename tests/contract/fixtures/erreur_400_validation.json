@@ -1,0 +1,29 @@
+{
+  "requete": {
+    "methode": "POST",
+    "chemin": "/avis",
+    "query": {},
+    "corps": {
+      "note": 9,
+      "commentaire": "",
+      "produitId": ""
+    },
+    "champs": null
+  },
+  "reponse": {
+    "success": false,
+    "message": "produitId is not allowed to be empty",
+    "data": {
+      "errors": [
+        {
+          "champ": "produitId",
+          "message": "produitId is not allowed to be empty"
+        },
+        {
+          "champ": "note",
+          "message": "note must be less than or equal to 5"
+        }
+      ]
+    }
+  }
+}

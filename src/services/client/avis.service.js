@@ -1,7 +1,22 @@
-const { Avis, Produit, sequelize } = require('../../models');
+const { Avis, Produit, User } = require('../../models');
 const { recalculerNoteMoyenne } = require('../../utils/avisHelper');
 
+/** Auteur d'un avis tel qu'exposé publiquement (jamais l'email). */
+const AUTEUR_INCLUDE = { model: User, as: 'user', attributes: ['id', 'nom', 'prenom', 'avatar'] };
+
 class AvisService {
+  /**
+   * Avis approuvés d'un produit, visibles par tous (fiche produit mobile).
+   */
+  static async getAvisProduit(produitId) {
+    const avis = await Avis.findAll({
+      where: { produitId, isApproved: true },
+      include: [AUTEUR_INCLUDE],
+      order: [['createdAt', 'DESC']],
+    });
+    return { success: true, avis };
+  }
+
   /**
    * Création d'avis protégée contre la double-soumission.
    * findOrCreate + index unique (userId, produitId) garantissent l'unicité

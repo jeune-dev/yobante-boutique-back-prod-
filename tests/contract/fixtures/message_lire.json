@@ -1,0 +1,14 @@
+{
+  "requete": {
+    "methode": "PUT",
+    "chemin": "/messages/80000000-0000-4000-8000-000000000001/lire",
+    "query": {},
+    "corps": null,
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Message marqué comme lu",
+    "data": {}
+  }
+}

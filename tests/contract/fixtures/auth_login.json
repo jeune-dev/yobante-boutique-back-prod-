@@ -1,0 +1,32 @@
+{
+  "requete": {
+    "methode": "POST",
+    "chemin": "/auth/login",
+    "query": {},
+    "corps": {
+      "identifiant": "fatou@exemple.com",
+      "password": "Secret123"
+    },
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Succès",
+    "data": {
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjEwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMSIsInJvbGUiOiJDTElFTlQiLCJpc0FjdGl2ZSI6dHJ1ZSwiaWF0IjoxNzg5OTM2NTQzLCJleHAiOjE3ODk5NDAxNDN9.mkoNOZ0rbh-uMJEwye2Tye316yTBVsvsFp4Xofoe0FE",
+      "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjEwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMSIsInR5cGUiOiJyZWZyZXNoIiwiaWF0IjoxNzg5OTM2NTQzLCJleHAiOjE3OTA1NDEzNDN9.sXNy2zTZy0xvu8N-yJiEiRkDcCvpytF9dnYNHAVff8k",
+      "user": {
+        "id": "10000000-0000-4000-8000-000000000001",
+        "nom": "Sow",
+        "prenom": "Fatou",
+        "email": "fatou@exemple.com",
+        "telephone": "+221771234567",
+        "role": "CLIENT",
+        "isActive": true,
+        "isVerified": true,
+        "avatar": null
+      },
+      "mustChangePassword": false
+    }
+  }
+}

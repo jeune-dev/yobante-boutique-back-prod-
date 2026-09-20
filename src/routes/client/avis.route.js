@@ -8,6 +8,9 @@ const checkActiveUser = require('../../middlewares/checkActiveUser.middleware');
 const validate = require('../../middlewares/validate.middleware');
 const { avisSchema, updateAvisSchema } = require('../../validations/avis.validation');
 
+// Public : les avis approuvés d'un produit (fiche produit).
+router.get('/produit/:produitId', ctrl.getParProduit);
+
 router.use(auth, checkActiveUser);
 
 router.get('/', ctrl.getMes);

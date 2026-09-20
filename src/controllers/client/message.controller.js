@@ -19,7 +19,7 @@ exports.historique = asyncHandler(async (req, res) => {
 
 exports.marquerLu = asyncHandler(async (req, res) => {
   await MessageService.marquerLu(req.params.messageId, req.user.id);
-  return ok(res, null, 'Message marqué comme lu');
+  return ok(res, {}, 'Message marqué comme lu');
 });
 
 exports.nombreNonLus = asyncHandler(async (req, res) => {

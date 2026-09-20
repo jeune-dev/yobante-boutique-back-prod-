@@ -1,0 +1,43 @@
+{
+  "requete": {
+    "methode": "GET",
+    "chemin": "/bannieres",
+    "query": {},
+    "corps": null,
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Bannières",
+    "data": {
+      "bannieres": [
+        {
+          "id": "00000000-0000-4000-8000-0000000000aa",
+          "titre": "Rentrée",
+          "image": "https://cdn.exemple/b.jpg",
+          "lien": "lien-exemple",
+          "categorieId": "00000000-0000-4000-8000-0000000000bb",
+          "ordre": 1,
+          "isActive": true,
+          "categorie": {
+            "id": "00000000-0000-4000-8000-0000000000aa",
+            "nom": "Épicerie",
+            "slug": "epicerie"
+          },
+          "produits": [
+            {
+              "id": "20000000-0000-4000-8000-000000000001",
+              "nom": "Huile de palme",
+              "slug": "huile-de-palme",
+              "prix": "1500.00",
+              "prixPromo": null,
+              "images": [
+                "https://cdn.exemple/p.jpg"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

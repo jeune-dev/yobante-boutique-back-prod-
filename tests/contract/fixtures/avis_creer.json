@@ -1,0 +1,29 @@
+{
+  "requete": {
+    "methode": "POST",
+    "chemin": "/avis",
+    "query": {},
+    "corps": {
+      "produitId": "20000000-0000-4000-8000-000000000001",
+      "note": 4,
+      "commentaire": "Top"
+    },
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Avis envoyé, en attente de modération",
+    "data": {
+      "avis": {
+        "id": "50000000-0000-4000-8000-000000000001",
+        "userId": "10000000-0000-4000-8000-000000000001",
+        "produitId": "20000000-0000-4000-8000-000000000001",
+        "note": 4,
+        "commentaire": "Top",
+        "isApproved": false,
+        "reponseVendeur": null,
+        "reponduAt": null
+      }
+    }
+  }
+}

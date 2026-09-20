@@ -1,0 +1,33 @@
+{
+  "requete": {
+    "methode": "POST",
+    "chemin": "/profile/adresses",
+    "query": {},
+    "corps": {
+      "nomComplet": "Fatou Sow",
+      "telephone": "+221771234567",
+      "rue": "Sicap",
+      "ville": "Dakar",
+      "pays": "Sénégal"
+    },
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Adresse ajoutée avec succès",
+    "data": {
+      "adresse": {
+        "id": "40000000-0000-4000-8000-000000000001",
+        "userId": "10000000-0000-4000-8000-000000000001",
+        "nomComplet": "Fatou Sow",
+        "telephone": "+221771234567",
+        "rue": "Sicap",
+        "ville": "Dakar",
+        "region": "region-exemple",
+        "pays": "Sénégal",
+        "codePostal": "codePostal-exemple",
+        "isDefault": false
+      }
+    }
+  }
+}

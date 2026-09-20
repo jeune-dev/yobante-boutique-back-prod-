@@ -252,7 +252,7 @@ app.use('/api', (req, res, next) => {
 });
 
 app.use((_req, res) => {
-  res.status(404).json({ success: false, message: 'Route introuvable', path: _req.path });
+  res.status(404).json({ success: false, message: 'Route introuvable', data: null });
 });
 
 app.use(errorMiddleware);

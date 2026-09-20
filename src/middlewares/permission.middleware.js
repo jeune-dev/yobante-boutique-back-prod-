@@ -11,7 +11,7 @@ const { ForbiddenError } = require('../errors/AppError');
 
 const permission = (requiredPermission) => (req, res, next) => {
   if (!req.user) {
-    return res.status(401).json({ success: false, message: 'Non authentifié' });
+    return res.status(401).json({ success: false, message: 'Non authentifié', data: null });
   }
 
   // Cas 1: Utilisateur ADMIN → tous les droits
@@ -32,6 +32,7 @@ const permission = (requiredPermission) => (req, res, next) => {
     return res.status(403).json({
       success: false,
       message: 'Accès refusé',
+      data: null,
       requiredPermission,
     });
   }

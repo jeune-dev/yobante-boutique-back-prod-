@@ -1,0 +1,18 @@
+{
+  "requete": {
+    "methode": "PUT",
+    "chemin": "/profile/avatar",
+    "query": {},
+    "corps": null,
+    "champs": [
+      "avatar"
+    ]
+  },
+  "reponse": {
+    "success": true,
+    "message": "Avatar mis à jour avec succès",
+    "data": {
+      "avatar": "https://cdn.exemple/image.jpg"
+    }
+  }
+}

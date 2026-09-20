@@ -1,0 +1,14 @@
+{
+  "requete": {
+    "methode": "DELETE",
+    "chemin": "/avis/50000000-0000-4000-8000-000000000001",
+    "query": {},
+    "corps": null,
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Avis supprimé avec succès",
+    "data": {}
+  }
+}

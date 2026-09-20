@@ -18,11 +18,23 @@ const CATALOGUE_INCLUDE = [
 ];
 
 class ProduitService {
-  static async getProduits({ page, limit, categorieId, prixMin, prixMax, search, tri } = {}) {
+  static async getProduits({
+    page,
+    limit,
+    categorieId,
+    vendeurId,
+    prixMin,
+    prixMax,
+    search,
+    tri,
+  } = {}) {
     const { page: p, limit: l, offset } = paginate(page, limit);
 
     const where = { isActive: true };
     if (categorieId) where.categorieId = categorieId;
+    // Produits d'une boutique : `vendeurId` est l'identifiant utilisateur du
+    // vendeur (`boutique.vendeur.id` côté mobile).
+    if (vendeurId) where.vendeurId = vendeurId;
     if (prixMin || prixMax) {
       where.prix = {};
       if (prixMin) where.prix[Op.gte] = prixMin;

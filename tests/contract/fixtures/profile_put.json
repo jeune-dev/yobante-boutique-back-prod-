@@ -1,0 +1,30 @@
+{
+  "requete": {
+    "methode": "PUT",
+    "chemin": "/profile",
+    "query": {},
+    "corps": {
+      "nom": "Sow",
+      "prenom": "Fatou",
+      "telephone": "+221770000000"
+    },
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Profil mis à jour avec succès",
+    "data": {
+      "user": {
+        "id": "10000000-0000-4000-8000-000000000001",
+        "nom": "Sow",
+        "prenom": "Fatou",
+        "email": "fatou@exemple.com",
+        "telephone": "+221770000000",
+        "role": "CLIENT",
+        "isActive": true,
+        "isVerified": true,
+        "avatar": null
+      }
+    }
+  }
+}

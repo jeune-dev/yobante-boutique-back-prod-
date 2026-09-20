@@ -1,0 +1,65 @@
+{
+  "requete": {
+    "methode": "GET",
+    "chemin": "/promotions/nos_promos_du_moment",
+    "query": {},
+    "corps": null,
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Promotions : nos_promos_du_moment",
+    "data": {
+      "promotions": [
+        {
+          "id": "00000000-0000-4000-8000-0000000000aa",
+          "produitId": "20000000-0000-4000-8000-000000000001",
+          "blocPromoId": "70000000-0000-4000-8000-000000000001",
+          "section": "nos_promos_du_moment",
+          "titre": "titre-exemple",
+          "description": "description-exemple",
+          "prixPromo": "1200.00",
+          "pourcentageReduction": "20.00",
+          "dateDebut": "2026-09-20T10:00:00.000Z",
+          "dateFin": "2026-12-31T00:00:00.000Z",
+          "isActive": true,
+          "ordre": 0,
+          "produit": {
+            "id": "20000000-0000-4000-8000-000000000001",
+            "nom": "Huile de palme",
+            "slug": "huile-de-palme",
+            "description": "description-exemple",
+            "prix": "1500.00",
+            "prixPromo": null,
+            "stock": 12,
+            "stockAlloue": 20,
+            "infoLegale": "infoLegale-exemple",
+            "noteMoyenne": "4.50",
+            "nombreAvis": 2,
+            "statutValidation": "valide",
+            "messageVendeur": "messageVendeur-exemple",
+            "motifRejet": "motifRejet-exemple",
+            "vendeurId": "10000000-0000-4000-8000-000000000002",
+            "images": [
+              "https://cdn.exemple/p.jpg"
+            ],
+            "isActive": true,
+            "isFeatured": true,
+            "poids": "10.00",
+            "reference": "reference-exemple",
+            "venduAuPoids": false,
+            "etat": "neuf",
+            "categorieId": null,
+            "rayonId": "60000000-0000-4000-8000-000000000001",
+            "sousRayonId": "60000000-0000-4000-8000-000000000002",
+            "categorie": {
+              "id": "00000000-0000-4000-8000-0000000000aa",
+              "nom": "Épicerie",
+              "slug": "epicerie"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

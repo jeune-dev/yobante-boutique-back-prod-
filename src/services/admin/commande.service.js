@@ -1,6 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // services/admin/commande.service.js
 // ─────────────────────────────────────────────────────────────
+const { Op } = require('sequelize');
 const {
   Commande,
   CommandeItem,
@@ -9,10 +10,28 @@ const {
   Adresse,
   Paiement,
   sequelize,
+  Panier,
+  FraisLivraison,
 } = require('../../models');
 const paginate = require('../../utils/paginate');
-const { sendCommandeStatut } = require('../../utils/mailer');
+const { sendCommandeStatut, sendCommandeConfirmation } = require('../../utils/mailer');
 const { toCsv } = require('../../utils/csv');
+const { sousTotal: calcSousTotal, round2 } = require('../../utils/money');
+const { FRAIS_LIVRAISON_DEFAUT } = require('../../constants');
+const { acquire, release } = require('../../utils/advisoryLock');
+const NotificationService = require('../notification');
+
+function _genererReference() {
+  return `CMD-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+}
+
+async function _getFraisLivraison(ville) {
+  if (ville) {
+    const tarif = await FraisLivraison.findOne({ where: { ville, isActive: true } });
+    if (tarif) return Number(tarif.montant);
+  }
+  return FRAIS_LIVRAISON_DEFAUT;
+}
 
 const TRANSITIONS = {
   validee: 'en_attente',

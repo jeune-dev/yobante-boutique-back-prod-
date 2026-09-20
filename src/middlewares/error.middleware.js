@@ -39,6 +39,15 @@ function redactBody(body) {
   return clean;
 }
 
+/**
+ * Réponse d'erreur uniforme, la même enveloppe que les succès :
+ *   { success: false, message, data: null }
+ * Les erreurs de validation portent en plus le détail par champ :
+ *   data: { errors: [{ champ, message }] }
+ */
+const repondre = (res, status, message, data = null) =>
+  res.status(status).json({ success: false, message, data });
+
 const errorMiddleware = (err, req, res, _next) => {
   logger.error(err.message, {
     name: err.name,
@@ -51,51 +60,49 @@ const errorMiddleware = (err, req, res, _next) => {
   });
 
   if (err instanceof AppError && err.isOperational) {
-    const body = { success: false, message: err.message };
-    if (err.details && err.details.length) body.details = err.details;
-    return res.status(err.statusCode).json(body);
+    const data = err.details && err.details.length ? { errors: err.details } : null;
+    return repondre(res, err.statusCode, err.message, data);
   }
 
   // Joi : validate.middleware.js propage l'erreur brute via next(err).
   // Sans cette branche, toute validation échouée ressortirait en 500.
-  if (err.isJoi)
-    return res.status(400).json({
-      success: false,
-      message: 'Données invalides',
-      ...(enProd() ? {} : { details: err.details?.map((d) => d.message) }),
-    });
+  // Le message est le premier détail Joi (lisible, en français dans les
+  // schémas) : le mobile l'affiche tel quel. Le détail par champ est dans
+  // `data.errors` ; il ne contient aucune donnée technique.
+  if (err.isJoi) {
+    const errors = (err.details || []).map((d) => ({
+      champ: Array.isArray(d.path) ? d.path.join('.') : '',
+      message: d.message.replace(/"/g, ''),
+    }));
+    return repondre(res, 400, errors[0]?.message || 'Données invalides', { errors });
+  }
 
-  if (err.name === 'TokenExpiredError')
-    return res.status(401).json({ success: false, message: 'Token expiré' });
+  if (err.name === 'TokenExpiredError') return repondre(res, 401, 'Token expiré');
   if (err.name === 'JsonWebTokenError' || err.name === 'NotBeforeError')
-    return res.status(401).json({ success: false, message: 'Token invalide' });
+    return repondre(res, 401, 'Token invalide');
 
   if (err.name === 'MulterError') {
     const message =
       err.code === 'LIMIT_FILE_SIZE'
         ? 'Fichier trop volumineux (max 5 MB)'
         : "Erreur lors de l'envoi du fichier";
-    return res.status(400).json({ success: false, message });
+    return repondre(res, 400, message);
   }
 
   if (err.type === 'entity.parse.failed' || err instanceof SyntaxError)
-    return res.status(400).json({ success: false, message: 'Corps de requête JSON invalide' });
+    return repondre(res, 400, 'Corps de requête JSON invalide');
 
   if (err.status === 413 || err.type === 'entity.too.large')
-    return res.status(413).json({ success: false, message: 'Corps de la requête trop volumineux' });
+    return repondre(res, 413, 'Corps de la requête trop volumineux');
 
   if (err.name === 'SequelizeValidationError')
-    return res.status(422).json({
-      success: false,
-      message: 'Données invalides',
-      ...(enProd() ? {} : { details: err.errors?.map((e) => e.message) }),
+    return repondre(res, 422, 'Données invalides', {
+      errors: (err.errors || []).map((e) => ({ champ: e.path, message: e.message })),
     });
   if (err.name === 'SequelizeUniqueConstraintError')
-    return res.status(409).json({ success: false, message: 'Cette ressource existe déjà' });
+    return repondre(res, 409, 'Cette ressource existe déjà');
   if (err.name === 'SequelizeForeignKeyConstraintError')
-    return res
-      .status(400)
-      .json({ success: false, message: 'Référence invalide : ressource liée introuvable' });
+    return repondre(res, 400, 'Référence invalide : ressource liée introuvable');
   if (
     [
       'SequelizeConnectionError',
@@ -104,7 +111,7 @@ const errorMiddleware = (err, req, res, _next) => {
       'SequelizeTimeoutError',
     ].includes(err.name)
   )
-    return res.status(503).json({ success: false, message: 'Service temporairement indisponible' });
+    return repondre(res, 503, 'Service temporairement indisponible');
 
   // Erreurs nommées émises hors AppError (librairies tierces, express-jwt…).
   const parNom = {
@@ -113,7 +120,7 @@ const errorMiddleware = (err, req, res, _next) => {
     ForbiddenError: [403, err.message],
     NotFoundError: [404, err.message],
   }[err.name];
-  if (parNom) return res.status(parNom[0]).json({ success: false, message: parNom[1] });
+  if (parNom) return repondre(res, parNom[0], parNom[1]);
 
   // Erreurs portant leur propre statut : `http-errors` et Express posent
   // `status`, d'autres `statusCode`. Sans cette branche, un 404 ou un 403 émis
@@ -122,16 +129,17 @@ const errorMiddleware = (err, req, res, _next) => {
   if (Number.isInteger(statutPorte) && statutPorte >= 400 && statutPorte <= 599) {
     // Un message de 5xx peut exposer des détails internes : on le masque en prod.
     const masque = enProd() && statutPorte >= 500;
-    return res.status(statutPorte).json({
-      success: false,
-      message: masque ? 'Erreur interne du serveur' : err.message || 'Erreur interne du serveur',
-    });
+    return repondre(
+      res,
+      statutPorte,
+      masque ? 'Erreur interne du serveur' : err.message || 'Erreur interne du serveur'
+    );
   }
 
   const message = enProd()
     ? 'Erreur interne du serveur'
     : err.message || 'Erreur interne du serveur';
-  return res.status(500).json({ success: false, message });
+  return repondre(res, 500, message);
 };
 
 module.exports = errorMiddleware;

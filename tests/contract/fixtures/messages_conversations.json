@@ -1,0 +1,16 @@
+{
+  "requete": {
+    "methode": "GET",
+    "chemin": "/messages/conversations",
+    "query": {},
+    "corps": null,
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Conversations",
+    "data": {
+      "conversations": []
+    }
+  }
+}

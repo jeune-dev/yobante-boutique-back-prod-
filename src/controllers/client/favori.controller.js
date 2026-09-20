@@ -6,7 +6,7 @@ const { BadRequestError } = require('../../errors/AppError');
 exports.mesFavoris = asyncHandler(async (req, res) => {
   const result = await FavoriClientService.mesFavoris(req.user.id);
   // Tableau renvoyé directement dans `data` (format attendu par l'app mobile).
-  return ok(res, result.boutiques, 'Mes favoris');
+  return ok(res, { boutiques: result.boutiques }, 'Mes favoris');
 });
 
 exports.ajouter = asyncHandler(async (req, res) => {

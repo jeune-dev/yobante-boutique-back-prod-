@@ -1,0 +1,16 @@
+{
+  "requete": {
+    "methode": "POST",
+    "chemin": "/favoris",
+    "query": {},
+    "corps": {
+      "boutiqueId": "10000000-0000-4000-8000-000000000002"
+    },
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Boutique ajoutée aux favoris",
+    "data": {}
+  }
+}

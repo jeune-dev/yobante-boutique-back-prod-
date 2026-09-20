@@ -1,0 +1,37 @@
+{
+  "requete": {
+    "methode": "POST",
+    "chemin": "/auth/register",
+    "query": {},
+    "corps": {
+      "nom": "Sow",
+      "prenom": "Fatou",
+      "email": "fatou@exemple.com",
+      "password": "Secret123",
+      "telephone": "+221771234567",
+      "adresse": {
+        "rue": "Sicap"
+      }
+    },
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Inscription réussie",
+    "data": {
+      "user": {
+        "id": "10000000-0000-4000-8000-000000000001",
+        "nom": "Sow",
+        "prenom": "Fatou",
+        "email": "fatou@exemple.com",
+        "telephone": "+221771234567",
+        "role": "CLIENT",
+        "isActive": true,
+        "isVerified": true,
+        "avatar": null
+      },
+      "messageTitle": "Inscription réussie",
+      "messageDescription": "Veuillez vous connecter pour accéder à votre dashboard."
+    }
+  }
+}

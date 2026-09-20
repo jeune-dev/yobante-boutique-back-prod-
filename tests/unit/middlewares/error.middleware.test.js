@@ -48,7 +48,8 @@ describe('Error Middleware', () => {
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
         success: false,
-        message: 'Données invalides'
+        message: 'Email invalide',
+        data: { errors: [{ champ: '', message: 'Email invalide' }] },
       })
     );
   });
@@ -63,7 +64,8 @@ describe('Error Middleware', () => {
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
         success: false,
-        message: 'Données invalides'
+        message: 'Données invalides',
+        data: null,
       })
     );
   });

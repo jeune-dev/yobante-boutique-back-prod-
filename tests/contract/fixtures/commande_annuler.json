@@ -1,0 +1,39 @@
+{
+  "requete": {
+    "methode": "PATCH",
+    "chemin": "/commandes/30000000-0000-4000-8000-000000000001/annuler",
+    "query": {},
+    "corps": null,
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Commande annulée avec succès",
+    "data": {
+      "commande": {
+        "id": "30000000-0000-4000-8000-000000000001",
+        "reference": "CMD-2026-0001",
+        "userId": "10000000-0000-4000-8000-000000000001",
+        "adresseId": "40000000-0000-4000-8000-000000000001",
+        "statut": "annulee",
+        "montantTotal": "3000.00",
+        "fraisLivraison": "0.00",
+        "note": "Sonner deux fois",
+        "dateLivraisonSouhaitee": "2026-10-01",
+        "noteAdmin": "noteAdmin-exemple",
+        "motifRejet": "motifRejet-exemple",
+        "items": [
+          {
+            "id": "00000000-0000-4000-8000-0000000000aa",
+            "commandeId": "30000000-0000-4000-8000-000000000001",
+            "produitId": "20000000-0000-4000-8000-000000000001",
+            "quantite": 2,
+            "prixUnitaire": "1500.00",
+            "sousTotal": "3000.00",
+            "createdAt": "2026-09-20T10:00:00.000Z"
+          }
+        ]
+      }
+    }
+  }
+}

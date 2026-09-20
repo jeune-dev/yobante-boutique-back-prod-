@@ -1,0 +1,51 @@
+{
+  "requete": {
+    "methode": "POST",
+    "chemin": "/vendeur/produits",
+    "query": {},
+    "corps": null,
+    "champs": [
+      "nom",
+      "description",
+      "prix",
+      "stockAlloue",
+      "messageVendeur",
+      "images"
+    ]
+  },
+  "reponse": {
+    "success": true,
+    "message": "Produit soumis pour validation",
+    "data": {
+      "produit": {
+        "id": "20000000-0000-4000-8000-000000000001",
+        "nom": "Huile",
+        "slug": "huile-1789936549106",
+        "description": "Bio",
+        "prix": "1500",
+        "prixPromo": null,
+        "stock": 12,
+        "stockAlloue": "20",
+        "infoLegale": "infoLegale-exemple",
+        "noteMoyenne": "4.50",
+        "nombreAvis": 2,
+        "statutValidation": "en_attente",
+        "messageVendeur": "Merci",
+        "motifRejet": null,
+        "vendeurId": "10000000-0000-4000-8000-000000000002",
+        "images": [
+          "https://cdn.exemple/image.jpg"
+        ],
+        "isActive": false,
+        "isFeatured": true,
+        "poids": "10.00",
+        "reference": "reference-exemple",
+        "venduAuPoids": false,
+        "etat": "neuf",
+        "categorieId": null,
+        "rayonId": "60000000-0000-4000-8000-000000000001",
+        "sousRayonId": "60000000-0000-4000-8000-000000000002"
+      }
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "requete": {
+    "methode": "POST",
+    "chemin": "/commandes/30000000-0000-4000-8000-000000000001/payer",
+    "query": {},
+    "corps": null,
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Paiement initié",
+    "data": {
+      "paiement": {
+        "id": "00000000-0000-4000-8000-0000000000aa",
+        "methode": "wave",
+        "statut": "en_attente",
+        "montant": "3000.00",
+        "reference": "TX-TEST-001",
+        "urlPaiement": "https://pay.exemple/TX-TEST-001"
+      }
+    }
+  }
+}

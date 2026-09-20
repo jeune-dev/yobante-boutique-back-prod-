@@ -1,0 +1,87 @@
+{
+  "requete": {
+    "methode": "GET",
+    "chemin": "/rayons/sous-rayons/60000000-0000-4000-8000-000000000002/produits",
+    "query": {
+      "page": "1",
+      "limit": "20"
+    },
+    "corps": null,
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Succès",
+    "data": {
+      "produits": [
+        {
+          "id": "20000000-0000-4000-8000-000000000001",
+          "nom": "Huile de palme",
+          "slug": "huile-de-palme",
+          "description": "description-exemple",
+          "prix": "1500.00",
+          "prixPromo": null,
+          "stock": 12,
+          "stockAlloue": 20,
+          "infoLegale": "infoLegale-exemple",
+          "noteMoyenne": "4.50",
+          "nombreAvis": 2,
+          "statutValidation": "valide",
+          "messageVendeur": "messageVendeur-exemple",
+          "motifRejet": "motifRejet-exemple",
+          "vendeurId": "10000000-0000-4000-8000-000000000002",
+          "images": [
+            "https://cdn.exemple/p.jpg"
+          ],
+          "isActive": true,
+          "isFeatured": true,
+          "poids": "10.00",
+          "reference": "reference-exemple",
+          "venduAuPoids": false,
+          "etat": "neuf",
+          "categorieId": null,
+          "rayonId": "60000000-0000-4000-8000-000000000001",
+          "sousRayonId": "60000000-0000-4000-8000-000000000002",
+          "sousRayon": {
+            "id": "60000000-0000-4000-8000-000000000002",
+            "nom": "Huiles"
+          },
+          "rayon": {
+            "id": "60000000-0000-4000-8000-000000000001",
+            "nom": "Alimentation"
+          },
+          "vendeur": {
+            "id": "10000000-0000-4000-8000-000000000002",
+            "nom": "Ndiaye",
+            "prenom": "Moussa",
+            "telephone": "+221765556677",
+            "profilVendeur": {
+              "id": "00000000-0000-4000-8000-0000000000aa",
+              "userId": "10000000-0000-4000-8000-000000000002",
+              "nomBoutique": "Chez Moussa",
+              "description": "Épicerie",
+              "infoLegale": "infoLegale-exemple",
+              "adresseBoutique": "Marché Sandaga",
+              "telephone": "+221765556677",
+              "logo": null,
+              "latitude": 14.67,
+              "longitude": -17.43,
+              "isValidatedStep1": true,
+              "isValidatedStep2": true,
+              "isActive": true,
+              "noteStep1By": "00000000-0000-4000-8000-0000000000bb",
+              "noteStep2By": "00000000-0000-4000-8000-0000000000bb",
+              "motifRejet": "motifRejet-exemple"
+            }
+          }
+        }
+      ],
+      "pagination": {
+        "total": 1,
+        "page": 1,
+        "limit": 20,
+        "totalPages": 1
+      }
+    }
+  }
+}

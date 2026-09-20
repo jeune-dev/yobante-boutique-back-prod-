@@ -1,0 +1,17 @@
+{
+  "requete": {
+    "methode": "POST",
+    "chemin": "/suppression-compte",
+    "query": {},
+    "corps": {
+      "email": "fatou@exemple.com",
+      "objet": "Demande de suppression de mon compte depuis l’application mobile"
+    },
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Votre demande a bien été enregistrée. Nous la traiterons dans les meilleurs délais.",
+    "data": {}
+  }
+}

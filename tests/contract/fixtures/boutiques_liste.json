@@ -1,0 +1,33 @@
+{
+  "requete": {
+    "methode": "GET",
+    "chemin": "/boutiques",
+    "query": {},
+    "corps": null,
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Boutiques",
+    "data": {
+      "boutiques": [
+        {
+          "id": "00000000-0000-4000-8000-0000000000aa",
+          "nom": "Chez Moussa",
+          "description": "Épicerie",
+          "localisation": "Marché Sandaga",
+          "telephone": "+221765556677",
+          "logo": null,
+          "heure_ouverture": null,
+          "heure_fermeture": null,
+          "vendeur": {
+            "id": "10000000-0000-4000-8000-000000000002",
+            "nom": "Ndiaye",
+            "prenom": "Moussa",
+            "telephone": "+221765556677"
+          }
+        }
+      ]
+    }
+  }
+}

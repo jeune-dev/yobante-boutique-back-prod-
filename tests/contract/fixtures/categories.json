@@ -1,0 +1,37 @@
+{
+  "requete": {
+    "methode": "GET",
+    "chemin": "/categories",
+    "query": {},
+    "corps": null,
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Catégories",
+    "data": {
+      "categories": [
+        {
+          "id": "00000000-0000-4000-8000-0000000000aa",
+          "nom": "Épicerie",
+          "slug": "epicerie",
+          "description": "description-exemple",
+          "image": "image-exemple",
+          "isActive": true,
+          "parentId": "00000000-0000-4000-8000-0000000000bb",
+          "sousCategories": [
+            {
+              "id": "00000000-0000-4000-8000-0000000000aa",
+              "nom": "Épicerie",
+              "slug": "epicerie",
+              "description": "description-exemple",
+              "image": "image-exemple",
+              "isActive": true,
+              "parentId": "00000000-0000-4000-8000-0000000000bb"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

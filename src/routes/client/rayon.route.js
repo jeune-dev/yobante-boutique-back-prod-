@@ -2,7 +2,20 @@
 const router = require('express').Router();
 const asyncHandler = require('../../utils/asyncHandler');
 const { ok } = require('../../utils/response');
-const { Rayon, SousRayon, Produit } = require('../../models');
+const { Rayon, SousRayon, Produit, User, ProfilVendeur } = require('../../models');
+
+// Même forme de produit que le catalogue (`GET /produits`) : le mobile lit
+// `vendeur` (nom, téléphone WhatsApp) et `rayon`/`sousRayon` sur chaque carte.
+const PRODUIT_INCLUDE = [
+  { model: SousRayon, as: 'sousRayon', attributes: ['id', 'nom'] },
+  { model: Rayon, as: 'rayon', attributes: ['id', 'nom'] },
+  {
+    model: User,
+    as: 'vendeur',
+    attributes: ['id', 'nom', 'prenom', 'telephone'],
+    include: [{ model: ProfilVendeur, as: 'profilVendeur' }],
+  },
+];
 const { Op } = require('sequelize');
 
 router.get(
@@ -46,10 +59,7 @@ router.get(
     if (search) where.nom = { [Op.iLike]: `%${search}%` };
     const { count, rows } = await Produit.findAndCountAll({
       where,
-      include: [
-        { model: SousRayon, as: 'sousRayon', attributes: ['id', 'nom'] },
-        { model: Rayon, as: 'rayon', attributes: ['id', 'nom'] },
-      ],
+      include: PRODUIT_INCLUDE,
       order: [['createdAt', 'DESC']],
       limit: parseInt(limit),
       offset,
@@ -75,6 +85,7 @@ router.get(
     if (search) where.nom = { [Op.iLike]: `%${search}%` };
     const { count, rows } = await Produit.findAndCountAll({
       where,
+      include: PRODUIT_INCLUDE,
       order: [['createdAt', 'DESC']],
       limit: parseInt(limit),
       offset,

@@ -1,0 +1,26 @@
+{
+  "requete": {
+    "methode": "GET",
+    "chemin": "/profile",
+    "query": {},
+    "corps": null,
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Profil récupéré",
+    "data": {
+      "user": {
+        "id": "10000000-0000-4000-8000-000000000001",
+        "nom": "Sow",
+        "prenom": "Fatou",
+        "email": "fatou@exemple.com",
+        "telephone": "+221771234567",
+        "role": "CLIENT",
+        "isActive": true,
+        "isVerified": true,
+        "avatar": null
+      }
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "requete": {
+    "methode": "GET",
+    "chemin": "/profile/adresses",
+    "query": {},
+    "corps": null,
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Adresses récupérées",
+    "data": {
+      "adresses": [
+        {
+          "id": "40000000-0000-4000-8000-000000000001",
+          "userId": "10000000-0000-4000-8000-000000000001",
+          "nomComplet": "Fatou Sow",
+          "telephone": "+221771234567",
+          "rue": "Sicap Liberté 6",
+          "ville": "Dakar",
+          "region": "region-exemple",
+          "pays": "Sénégal",
+          "codePostal": "codePostal-exemple",
+          "isDefault": true
+        }
+      ]
+    }
+  }
+}
