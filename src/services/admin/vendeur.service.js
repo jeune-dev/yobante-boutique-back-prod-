@@ -110,7 +110,8 @@ class GestionVendeurService {
       const hashedPassword = await bcrypt.hash(motDePasseTemporaire, bcryptConfig.saltRounds);
 
       const phone = data.phoneCountryCode
-        ? (validateAndFormatPhone(data.phoneNationalNumber, data.phoneCountryCode).phoneNumber || data.telephone)
+        ? validateAndFormatPhone(data.phoneNationalNumber, data.phoneCountryCode).phoneNumber ||
+          data.telephone
         : data.telephone;
 
       user = await User.create(
@@ -308,6 +309,7 @@ class GestionVendeurService {
   }
 
   static async renvoyerIdentifiants(id) {
+    let motDePasseTemporaire;
     const t = await sequelize.transaction();
     try {
       const user = await User.findOne({
@@ -320,10 +322,13 @@ class GestionVendeurService {
       }
       if (!user.email) {
         await t.rollback();
-        return { success: false, message: "Impossible de renvoyer : aucune adresse email valide n'est associée." };
+        return {
+          success: false,
+          message: "Impossible de renvoyer : aucune adresse email valide n'est associée.",
+        };
       }
-      const emailClean = user.email.trim().toLowerCase();
-      const motDePasseTemporaire = GestionVendeurService._genererMotDePasse();
+      const email = user.email.trim().toLowerCase();
+      motDePasseTemporaire = GestionVendeurService._genererMotDePasse();
       const hashedPassword = await bcrypt.hash(motDePasseTemporaire, bcryptConfig.saltRounds);
 
       await User.update(
@@ -359,7 +364,10 @@ class GestionVendeurService {
 
     if (!envoi.success) {
       logger.error('[Vendeur] Renvoi identifiants échoué', { userId: id, error: envoi.error });
-      return { success: false, message: 'Le mot de passe a été réinitialisé mais l\'email n\'a pas pu être envoyé.' };
+      return {
+        success: false,
+        message: "Le mot de passe a été réinitialisé mais l'email n'a pas pu être envoyé.",
+      };
     }
 
     return {
@@ -384,11 +392,13 @@ class GestionVendeurService {
 
       const userUpdates = {};
       const phone = data.phoneCountryCode
-        ? (validateAndFormatPhone(data.phoneNationalNumber, data.phoneCountryCode).phoneNumber || data.telephone)
+        ? validateAndFormatPhone(data.phoneNationalNumber, data.phoneCountryCode).phoneNumber ||
+          data.telephone
         : data.telephone;
 
       if (data.nom !== undefined) userUpdates.nom = data.nom ? data.nom.trim() : user.nom;
-      if (data.prenom !== undefined) userUpdates.prenom = data.prenom ? data.prenom.trim() : user.prenom;
+      if (data.prenom !== undefined)
+        userUpdates.prenom = data.prenom ? data.prenom.trim() : user.prenom;
       if (phone !== undefined) userUpdates.telephone = phone ? phone.trim() : null;
 
       if (data.email !== undefined && data.email.trim()) {
@@ -412,10 +422,14 @@ class GestionVendeurService {
 
       let profil = await ProfilVendeur.findOne({ where: { userId: id }, transaction: t });
       const profilUpdates = {};
-      if (data.nomBoutique !== undefined) profilUpdates.nomBoutique = data.nomBoutique ? data.nomBoutique.trim() : null;
-      if (data.description !== undefined) profilUpdates.description = data.description ? data.description.trim() : null;
-      if (data.adresseBoutique !== undefined) profilUpdates.adresseBoutique = data.adresseBoutique ? data.adresseBoutique.trim() : null;
-      if (data.infoLegale !== undefined) profilUpdates.infoLegale = data.infoLegale ? data.infoLegale.trim() : null;
+      if (data.nomBoutique !== undefined)
+        profilUpdates.nomBoutique = data.nomBoutique ? data.nomBoutique.trim() : null;
+      if (data.description !== undefined)
+        profilUpdates.description = data.description ? data.description.trim() : null;
+      if (data.adresseBoutique !== undefined)
+        profilUpdates.adresseBoutique = data.adresseBoutique ? data.adresseBoutique.trim() : null;
+      if (data.infoLegale !== undefined)
+        profilUpdates.infoLegale = data.infoLegale ? data.infoLegale.trim() : null;
       if (phone !== undefined) profilUpdates.telephone = phone ? phone.trim() : null;
       if (data.latitude !== undefined) profilUpdates.latitude = data.latitude;
       if (data.longitude !== undefined) profilUpdates.longitude = data.longitude;
