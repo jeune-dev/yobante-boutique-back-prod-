@@ -62,4 +62,18 @@ exports.getKpi = asyncHandler(async (req, res) => {
   const result = await GestionCommandeService.getKpiCommandes();
   return ok(res, result.kpi, 'KPI commandes');
 });
-exports.creer = asyncHandler(async (req, res) => { const GestionCommandeService = require("../../services/admin/commande.service"); const { ok } = require("../../utils/response"); const { BadRequestError } = require("../../errors/AppError"); const { userId, adresseId, note, methode, items, dateLivraisonSouhaitee } = req.body; const result = await GestionCommandeService.creerCommandeAdmin(userId, { adresseId, note, methode, items, dateLivraisonSouhaitee }); if (!result.success) throw new BadRequestError(result.message); return ok(res, { commandeId: result.commandeId }, result.message); });
+exports.creer = asyncHandler(async (req, res) => {
+  const GestionCommandeService = require('../../services/admin/commande.service');
+  const { ok } = require('../../utils/response');
+  const { BadRequestError } = require('../../errors/AppError');
+  const { userId, adresseId, note, methode, items, dateLivraisonSouhaitee } = req.body;
+  const result = await GestionCommandeService.creerCommandeAdmin(userId, {
+    adresseId,
+    note,
+    methode,
+    items,
+    dateLivraisonSouhaitee,
+  });
+  if (!result.success) throw new BadRequestError(result.message);
+  return ok(res, { commandeId: result.commandeId }, result.message);
+});

@@ -33,7 +33,7 @@ const Produit = sequelize.define(
     prixAchat: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: true,
-      comment: 'Prix d\'achat du produit — réservé à l\'admin, jamais exposé au client',
+      comment: "Prix d'achat du produit — réservé à l'admin, jamais exposé au client",
     },
     stock: {
       type: DataTypes.INTEGER,

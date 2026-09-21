@@ -12,7 +12,15 @@ const echapper = (valeur) =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 
-module.exports = ({ nom, prenom, email, telephone, motDePasseTemporaire, lienConnexion, role = 'vendeur' }) => `
+module.exports = ({
+  nom,
+  prenom,
+  email,
+  telephone,
+  motDePasseTemporaire,
+  lienConnexion,
+  role = 'vendeur',
+}) => `
 <div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;color:#111827">
   <h2 style="color:#111827">Bonjour ${echapper(prenom)} ${echapper(nom)},</h2>
   <p>Un compte <strong>${echapper(role)}</strong> vient d'être créé pour vous sur <strong>Yobante Boutique</strong>.</p>
@@ -28,11 +36,15 @@ module.exports = ({ nom, prenom, email, telephone, motDePasseTemporaire, lienCon
       <td style="padding:10px;font-weight:bold;border:1px solid #e5e7eb">Identifiant (email)</td>
       <td style="padding:10px;border:1px solid #e5e7eb">${echapper(email)}</td>
     </tr>
-    ${telephone ? `
+    ${
+      telephone
+        ? `
     <tr style="background:#f9fafb">
       <td style="padding:10px;font-weight:bold;border:1px solid #e5e7eb">Téléphone</td>
       <td style="padding:10px;border:1px solid #e5e7eb">${echapper(telephone)}</td>
-    </tr>` : ''}
+    </tr>`
+        : ''
+    }
     <tr>
       <td style="padding:10px;font-weight:bold;border:1px solid #e5e7eb">Mot de passe temporaire</td>
       <td style="padding:10px;border:1px solid #e5e7eb;font-family:monospace;font-size:18px;letter-spacing:2px">

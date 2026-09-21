@@ -5,7 +5,14 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
-const { User, RefreshToken, UserOtp, Adresse, PasswordResetToken, sequelize } = require('../models');
+const {
+  User,
+  RefreshToken,
+  UserOtp,
+  Adresse,
+  PasswordResetToken,
+  sequelize,
+} = require('../models');
 const { bcryptConfig, jwtConfig } = require('../config/security');
 const { sendResetPasswordEmail } = require('../utils/mailer');
 const cache = require('../config/cache');

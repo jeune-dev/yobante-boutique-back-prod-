@@ -12,7 +12,11 @@ const createProduitSchema = Joi.object({
   description: Joi.string().trim().allow('', null).optional(),
   prix: Joi.number().min(0).required(),
   prixPromo: Joi.number().min(0).allow(null).optional(),
-  prixAchat: Joi.number().min(0).allow(null).optional().messages({ 'number.base': "Le prix d'achat doit être un nombre" }),
+  prixAchat: Joi.number()
+    .min(0)
+    .allow(null)
+    .optional()
+    .messages({ 'number.base': "Le prix d'achat doit être un nombre" }),
   stock: Joi.number().integer().min(0).default(0),
   images: Joi.array().items(Joi.string().trim()).optional(),
   // Le rangement en rayon commande la navigation de l'accueil mobile : un
@@ -37,7 +41,11 @@ const updateProduitSchema = Joi.object({
   description: Joi.string().trim().allow('', null).optional(),
   prix: Joi.number().min(0).optional(),
   prixPromo: Joi.number().min(0).allow(null).optional(),
-  prixAchat: Joi.number().min(0).allow(null).optional().messages({ 'number.base': "Le prix d'achat doit être un nombre" }),
+  prixAchat: Joi.number()
+    .min(0)
+    .allow(null)
+    .optional()
+    .messages({ 'number.base': "Le prix d'achat doit être un nombre" }),
   stock: Joi.number().integer().min(0).optional(),
   images: Joi.array().items(Joi.string().trim()).optional(),
   // Facultatifs en modification : on ne réimpose pas le rangement à chaque

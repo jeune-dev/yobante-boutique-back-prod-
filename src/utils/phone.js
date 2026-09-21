@@ -8,12 +8,12 @@ const { isValidPhoneNumber, parsePhoneNumberFromString } = require('libphonenumb
  */
 const validateAndFormatPhone = (phone, countryCode) => {
   if (!phone || !countryCode) return { isValid: false, phoneNumber: null };
-  
+
   const phoneNumber = parsePhoneNumberFromString(phone, countryCode);
   if (phoneNumber && phoneNumber.isValid()) {
-    return { 
-      isValid: true, 
-      phoneNumber: phoneNumber.format('E.164') // Normalisation E.164
+    return {
+      isValid: true,
+      phoneNumber: phoneNumber.format('E.164'), // Normalisation E.164
     };
   }
   return { isValid: false, phoneNumber: null };

@@ -9,7 +9,8 @@ const { ROLES } = require('../../constants');
 const HASH_ALGO = 'sha256';
 
 const forgotPassword = async (email) => {
-  const genericMessage = "Si un compte administrateur actif correspond à cet email, un lien de réinitialisation a été envoyé.";
+  const genericMessage =
+    'Si un compte administrateur actif correspond à cet email, un lien de réinitialisation a été envoyé.';
 
   const user = await User.findOne({ where: { email, role: ROLES.ADMIN, isActive: true } });
   if (!user) {
@@ -46,11 +47,16 @@ const resetPassword = async (token, email, newPassword) => {
       expiresAt: { [Op.gt]: now },
       usedAt: null,
     },
-    include: [{ model: User, as: 'user' }]
+    include: [{ model: User, as: 'user' }],
   });
 
-  if (!reset || reset.user.email !== email || reset.user.role !== ROLES.ADMIN || !reset.user.isActive) {
-    throw new Error("Lien invalide ou expiré");
+  if (
+    !reset ||
+    reset.user.email !== email ||
+    reset.user.role !== ROLES.ADMIN ||
+    !reset.user.isActive
+  ) {
+    throw new Error('Lien invalide ou expiré');
   }
 
   const hashedPassword = await bcrypt.hash(newPassword, 10);
