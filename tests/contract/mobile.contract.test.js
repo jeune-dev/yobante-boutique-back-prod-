@@ -316,8 +316,8 @@ describe('Contrat API mobile ↔ backend', () => {
   });
 
   it('POST /auth/reset-password', async () => {
-    // Le mobile envoie un token (hashé côté backend) + le nouveau mot de passe
-    const res = await request(app).post('/api/v1/auth/reset-password').send({ email: 'fatou@exemple.com', token: 'reset-token-123', newPassword: 'Nouveau123' });
+    // Le mobile envoie un resetToken (hashé côté backend) + le nouveau mot de passe
+    const res = await request(app).post('/api/v1/auth/reset-password').send({ resetToken: 'reset-token-123', newPassword: 'Nouveau123' });
     contrat('auth_reset_password', res);
   });
 
