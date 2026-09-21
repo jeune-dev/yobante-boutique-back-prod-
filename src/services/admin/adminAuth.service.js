@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const { Op } = require('sequelize');
 const { User, AdminPasswordReset } = require('../../models');
 const mailerService = require('../mailer.service');
