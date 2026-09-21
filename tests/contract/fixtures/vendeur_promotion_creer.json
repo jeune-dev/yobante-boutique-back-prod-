@@ -1,0 +1,50 @@
+{
+  "requete": {
+    "methode": "POST",
+    "chemin": "/vendeur/promotions",
+    "query": {},
+    "corps": {
+      "produitId": "20000000-0000-4000-8000-000000000001",
+      "titre": "Promo huile",
+      "description": "Deux semaines",
+      "prixPromo": 1200,
+      "dateDebut": "2026-09-21T00:00:00.000Z",
+      "dateFin": "2026-10-05T00:00:00.000Z"
+    },
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Promotion créée",
+    "data": {
+      "promotion": {
+        "id": "c0000000-0000-4000-8000-000000000001",
+        "produitId": "20000000-0000-4000-8000-000000000001",
+        "blocPromoId": "70000000-0000-4000-8000-000000000001",
+        "section": "nos_promos_du_moment",
+        "titre": "titre-exemple",
+        "description": "description-exemple",
+        "prixPromo": "1200.00",
+        "pourcentageReduction": "20.00",
+        "dateDebut": "2026-09-20T10:00:00.000Z",
+        "dateFin": "2026-12-31T00:00:00.000Z",
+        "isActive": true,
+        "ordre": 0,
+        "createdAt": "2026-09-20T10:00:00.000Z",
+        "updatedAt": "2026-09-20T10:00:00.000Z",
+        "produit": {
+          "id": "20000000-0000-4000-8000-000000000001",
+          "nom": "Huile de palme",
+          "slug": "huile-de-palme",
+          "prix": "1500.00",
+          "prixPromo": null,
+          "stock": 12,
+          "vendeurId": "10000000-0000-4000-8000-000000000002",
+          "images": [
+            "https://cdn.exemple/p.jpg"
+          ]
+        }
+      }
+    }
+  }
+}

@@ -41,6 +41,8 @@
           "categorieId": null,
           "rayonId": "60000000-0000-4000-8000-000000000001",
           "sousRayonId": "60000000-0000-4000-8000-000000000002",
+          "createdAt": "2026-09-20T10:00:00.000Z",
+          "updatedAt": "2026-09-20T10:00:00.000Z",
           "categorie": {
             "id": "00000000-0000-4000-8000-0000000000aa",
             "nom": "Épicerie",
@@ -48,7 +50,9 @@
             "description": "description-exemple",
             "image": "image-exemple",
             "isActive": true,
-            "parentId": "00000000-0000-4000-8000-0000000000bb"
+            "parentId": "00000000-0000-4000-8000-0000000000bb",
+            "createdAt": "2026-09-20T10:00:00.000Z",
+            "updatedAt": "2026-09-20T10:00:00.000Z"
           },
           "vendeur": {
             "id": "10000000-0000-4000-8000-000000000002",
@@ -71,7 +75,9 @@
               "isActive": true,
               "noteStep1By": "00000000-0000-4000-8000-0000000000bb",
               "noteStep2By": "00000000-0000-4000-8000-0000000000bb",
-              "motifRejet": "motifRejet-exemple"
+              "motifRejet": "motifRejet-exemple",
+              "createdAt": "2026-09-20T10:00:00.000Z",
+              "updatedAt": "2026-09-20T10:00:00.000Z"
             }
           }
         }

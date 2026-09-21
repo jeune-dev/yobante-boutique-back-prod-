@@ -27,6 +27,9 @@ const SousRayon = require('./SousRayon.model');
 const BanniereProduit = require('./BanniereProduit.model');
 const DemandeSuppressionCompte = require('./DemandeSuppressionCompte.model');
 const Message = require('./Message.model');
+const Signalement = require('./Signalement.model');
+const Abonnement = require('./Abonnement.model');
+const PaiementAbonnement = require('./PaiementAbonnement.model');
 
 // ── User associations ──────────────────────────────────────────
 User.hasMany(Commande, { foreignKey: 'userId', as: 'commandes', onDelete: 'CASCADE' });
@@ -152,6 +155,22 @@ Produit.belongsToMany(Banniere, {
   as: 'bannieres',
 });
 
+// ── Signalement associations ───────────────────────────────────
+User.hasMany(Signalement, { foreignKey: 'userId', as: 'signalements', onDelete: 'CASCADE' });
+Signalement.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+// ── Abonnement vendeur associations ────────────────────────────
+User.hasMany(Abonnement, { foreignKey: 'vendeurId', as: 'abonnements', onDelete: 'CASCADE' });
+Abonnement.belongsTo(User, { foreignKey: 'vendeurId', as: 'vendeur' });
+User.hasMany(PaiementAbonnement, {
+  foreignKey: 'vendeurId',
+  as: 'paiementsAbonnement',
+  onDelete: 'CASCADE',
+});
+PaiementAbonnement.belongsTo(User, { foreignKey: 'vendeurId', as: 'vendeur' });
+Abonnement.hasMany(PaiementAbonnement, { foreignKey: 'abonnementId', as: 'paiements' });
+PaiementAbonnement.belongsTo(Abonnement, { foreignKey: 'abonnementId', as: 'abonnement' });
+
 // ── Export all models ──────────────────────────────────────────
 module.exports = {
   sequelize,
@@ -179,4 +198,7 @@ module.exports = {
   BanniereProduit,
   DemandeSuppressionCompte,
   Message,
+  Signalement,
+  Abonnement,
+  PaiementAbonnement,
 };

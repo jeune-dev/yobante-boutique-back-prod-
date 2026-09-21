@@ -18,6 +18,9 @@
           "description": "description-exemple",
           "image": "image-exemple",
           "isActive": true,
+          "createdAt": "2026-09-20T10:00:00.000Z",
+          "updatedAt": "2026-09-20T10:00:00.000Z",
+          "ordre": 1,
           "sousRayons": [
             {
               "id": "60000000-0000-4000-8000-000000000002",

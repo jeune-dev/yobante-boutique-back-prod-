@@ -1,0 +1,28 @@
+{
+  "requete": {
+    "methode": "GET",
+    "chemin": "/vendeur/abonnement/paiements",
+    "query": {},
+    "corps": null,
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Historique des paiements",
+    "data": {
+      "paiements": [
+        {
+          "id": "b0000000-0000-4000-8000-000000000002",
+          "montant": "5000.00",
+          "methode": "wave",
+          "statut": "succes",
+          "transactionId": "WAV-ABO-TEST",
+          "urlPaiement": "https://pay.exemple/WAV-ABO-TEST",
+          "numeroTelephone": "+221765556677",
+          "payeAt": "2026-09-20T10:00:00.000Z",
+          "createdAt": "2026-09-20T10:00:00.000Z"
+        }
+      ]
+    }
+  }
+}

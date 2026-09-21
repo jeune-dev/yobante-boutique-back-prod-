@@ -22,6 +22,8 @@
         "dateLivraisonSouhaitee": "2026-10-01",
         "noteAdmin": "noteAdmin-exemple",
         "motifRejet": "motifRejet-exemple",
+        "createdAt": "2026-09-20T10:00:00.000Z",
+        "updatedAt": "2026-09-20T10:00:00.000Z",
         "items": [
           {
             "id": "00000000-0000-4000-8000-0000000000aa",

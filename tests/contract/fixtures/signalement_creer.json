@@ -1,0 +1,32 @@
+{
+  "requete": {
+    "methode": "POST",
+    "chemin": "/signalements",
+    "query": {},
+    "corps": {
+      "type": "boutique",
+      "cibleId": "10000000-0000-4000-8000-000000000002",
+      "raison": "Produit non conforme",
+      "description": "La commande ne correspond pas"
+    },
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Signalement envoyé",
+    "data": {
+      "signalement": {
+        "id": "a0000000-0000-4000-8000-000000000001",
+        "userId": "10000000-0000-4000-8000-000000000001",
+        "type": "boutique",
+        "cibleId": "10000000-0000-4000-8000-000000000002",
+        "raison": "Produit non conforme",
+        "description": "La commande ne correspond pas",
+        "statut": "en_attente",
+        "reponseAdmin": null,
+        "createdAt": "2026-09-20T10:00:00.000Z",
+        "updatedAt": "2026-09-20T10:00:00.000Z"
+      }
+    }
+  }
+}

@@ -1,4 +1,5 @@
 const PaiementClientService = require('../../services/client/paiement.service');
+const AbonnementService = require('../../services/vendeur/abonnement.service');
 const asyncHandler = require('../../utils/asyncHandler');
 const { ok } = require('../../utils/response');
 const {
@@ -46,12 +47,17 @@ exports.statut = asyncHandler(async (req, res) => {
  */
 exports.callback = asyncHandler(async (req, res) => {
   const { reference, succes } = req.body;
-  const resultat = await PaiementClientService.traiterCallback({
+  const donnees = {
     reference,
     succes: succes === true || succes === 'true',
     signature: req.headers['x-paiement-signature'],
     corps: req.body,
-  });
+  };
+  let resultat = await PaiementClientService.traiterCallback(donnees);
+  // Référence inconnue côté commandes : c'est peut-être un abonnement vendeur.
+  if (!resultat.success && resultat.status === 404) {
+    resultat = await AbonnementService.traiterCallback(donnees);
+  }
   if (!resultat.success) lever(resultat);
   return ok(res, {}, resultat.message);
 });

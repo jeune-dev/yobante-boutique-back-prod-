@@ -1,0 +1,24 @@
+{
+  "requete": {
+    "methode": "GET",
+    "chemin": "/vendeur/abonnement",
+    "query": {},
+    "corps": null,
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Mon abonnement",
+    "data": {
+      "abonnement": {
+        "id": "b0000000-0000-4000-8000-000000000001",
+        "vendeurId": "10000000-0000-4000-8000-000000000002",
+        "type": "mensuel",
+        "montant": "5000.00",
+        "dateDebut": "2026-09-20T10:00:00.000Z",
+        "dateFin": "2026-10-20T10:00:00.000Z",
+        "statut": "actif"
+      }
+    }
+  }
+}

@@ -20,7 +20,9 @@
         "commentaire": "Très bon produit",
         "isApproved": true,
         "reponseVendeur": "Merci !",
-        "reponduAt": "2026-09-20T20:35:48.783Z",
+        "reponduAt": "2026-09-21T12:10:33.087Z",
+        "createdAt": "2026-09-20T10:00:00.000Z",
+        "updatedAt": "2026-09-20T10:00:00.000Z",
         "user": {
           "id": "10000000-0000-4000-8000-000000000001",
           "nom": "Sow",

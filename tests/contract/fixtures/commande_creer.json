@@ -33,6 +33,8 @@
         "dateLivraisonSouhaitee": "2026-10-01",
         "noteAdmin": "noteAdmin-exemple",
         "motifRejet": "motifRejet-exemple",
+        "createdAt": "2026-09-20T10:00:00.000Z",
+        "updatedAt": "2026-09-20T10:00:00.000Z",
         "items": [
           {
             "id": "00000000-0000-4000-8000-0000000000aa",
@@ -69,7 +71,9 @@
               "etat": "neuf",
               "categorieId": null,
               "rayonId": "60000000-0000-4000-8000-000000000001",
-              "sousRayonId": "60000000-0000-4000-8000-000000000002"
+              "sousRayonId": "60000000-0000-4000-8000-000000000002",
+              "createdAt": "2026-09-20T10:00:00.000Z",
+              "updatedAt": "2026-09-20T10:00:00.000Z"
             }
           }
         ],
@@ -88,7 +92,9 @@
           "tentatives": 1,
           "codeErreur": "codeErreur-exemple",
           "montantRemboursePaye": "10.00",
-          "payeAt": null
+          "payeAt": null,
+          "createdAt": "2026-09-20T10:00:00.000Z",
+          "updatedAt": "2026-09-20T10:00:00.000Z"
         }
       }
     }

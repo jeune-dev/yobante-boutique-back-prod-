@@ -66,6 +66,10 @@ const ID = {
   bloc: '70000000-0000-4000-8000-000000000001',
   message: '80000000-0000-4000-8000-000000000001',
   notification: '90000000-0000-4000-8000-000000000001',
+  signalement: 'a0000000-0000-4000-8000-000000000001',
+  abonnement: 'b0000000-0000-4000-8000-000000000001',
+  paiementAbonnement: 'b0000000-0000-4000-8000-000000000002',
+  promotion: 'c0000000-0000-4000-8000-000000000001',
 };
 const DATE = '2026-09-20T10:00:00.000Z';
 const HASH = bcrypt.hashSync('Secret123', 4);
@@ -84,13 +88,16 @@ const SURCHARGES = {
   SousRayon: { id: ID.sousRayon, rayonId: ID.rayon, nom: 'Huiles', slug: 'huiles', isActive: true, ordre: 1 },
   Banniere: { titre: 'Rentrée', image: 'https://cdn.exemple/b.jpg', isActive: true },
   BlocPromo: { id: ID.bloc, section: 'nos_promos_du_moment', titre: 'Sélection', image: null, isActive: true, ordre: 0 },
-  Promotion: { section: 'nos_promos_du_moment', blocPromoId: ID.bloc, produitId: ID.produit, prixPromo: '1200.00', pourcentageReduction: '20.00', dateDebut: DATE, dateFin: '2026-12-31T00:00:00.000Z', isActive: true, ordre: 0 },
+  Promotion: { id: ID.promotion, section: 'nos_promos_du_moment', blocPromoId: ID.bloc, produitId: ID.produit, prixPromo: '1200.00', pourcentageReduction: '20.00', dateDebut: DATE, dateFin: '2026-12-31T00:00:00.000Z', isActive: true, ordre: 0 },
   Message: { id: ID.message, expediteurId: ID.client, destinataireId: ID.vendeur, contenu: 'Bonjour', lu: false },
   Notification: { id: ID.notification, userId: ID.client, titre: 'Commande validée', corps: 'Votre commande CMD-2026-0001 est validée', lue: false, type: 'commande' },
   Favori: { userId: ID.client, boutiqueId: ID.vendeur },
   Categorie: { nom: 'Épicerie', slug: 'epicerie', isActive: true },
   DeviceToken: { userId: ID.client, token: 'fcm-token', plateforme: 'android' },
   RefreshToken: { userId: ID.client, expiresAt: '2027-01-01T00:00:00.000Z', revoked: false },
+  Signalement: { id: ID.signalement, userId: ID.client, type: 'boutique', cibleId: ID.vendeur, raison: 'Produit non conforme', description: 'La commande ne correspond pas', statut: 'en_attente', reponseAdmin: null },
+  Abonnement: { id: ID.abonnement, vendeurId: ID.vendeur, type: 'mensuel', montant: '5000.00', dateDebut: DATE, dateFin: '2026-10-20T10:00:00.000Z', statut: 'actif' },
+  PaiementAbonnement: { id: ID.paiementAbonnement, vendeurId: ID.vendeur, abonnementId: ID.abonnement, montant: '5000.00', methode: 'wave', numeroTelephone: '+221765556677', statut: 'succes', transactionId: 'WAV-ABO-TEST', urlPaiement: 'https://pay.exemple/WAV-ABO-TEST', payeAt: DATE, derniereErreur: null },
   UserOtp: { userId: ID.client, code: bcrypt.hashSync('ABCD1234', 4), type: 'reset_password', isUsed: false, expiresAt: '2027-01-01T00:00:00.000Z' },
 };
 
@@ -163,7 +170,8 @@ function instance(Model, includes, surcharges) {
     d[assoc.as] = assoc.isMultiAssociation ? [construire(enfant())] : construire(enfant());
     specs.push({ association: assoc, include: nested.map((n) => ({ association: n.association || Cible.associations[n.as] || Object.values(Cible.associations).find((x) => x.target === n.model) })).filter((s) => s.association) });
   }
-  const inst = Model.build(d, { include: specs, isNewRecord: false, raw: false });
+  // `raw: true` : les horodatages (attributs en lecture seule) sont conservés.
+  const inst = Model.build(d, { include: specs, isNewRecord: false, raw: true });
   neutraliser(inst);
   return inst;
 }
@@ -507,7 +515,20 @@ describe('Contrat API mobile ↔ backend', () => {
     expect(d.message).toMatchObject({ id: expect.any(String), contenu: expect.any(String) });
   });
   it('GET /messages/conversations', async () => {
-    contrat('messages_conversations', await request(app).get('/api/v1/messages/conversations').set(auth()), { cles: ['conversations'] });
+    // Le service agrège en SQL brut : on double la requête avec une ligne
+    // telle que PostgreSQL la renverrait.
+    sequelize.query.mockResolvedValueOnce([{
+      interlocuteurId: ID.vendeur, interlocuteurNom: 'Diop', interlocuteurPrenom: 'Moussa', interlocuteurPhoto: null,
+      dernierMessageContenu: 'Bonjour', dernierMessageDate: DATE, nombreNonLus: 2,
+    }]);
+    const d = contrat('messages_conversations', await request(app).get('/api/v1/messages/conversations').set(auth()), { cles: ['conversations'] });
+    expect(d.conversations).toHaveLength(1);
+    expect(d.conversations[0]).toMatchObject({
+      interlocuteurId: ID.vendeur,
+      interlocuteur: { id: ID.vendeur, nom: 'Diop', prenom: 'Moussa' },
+      dernierMessage: { contenu: 'Bonjour', createdAt: DATE },
+      nombreNonLus: 2,
+    });
   });
   it('GET /messages/:userId', async () => {
     contrat('messages_historique', await request(app).get(`/api/v1/messages/${ID.vendeur}`).set(auth()), { cles: ['messages'] });
@@ -576,6 +597,64 @@ describe('Contrat API mobile ↔ backend', () => {
   });
   it('GET /vendeur/commandes/:id', async () => {
     contrat('vendeur_commande_detail', await request(app).get(`/api/v1/vendeur/commandes/${ID.commande}`).set(auth('VENDEUR')), { cles: ['commande'] });
+  });
+
+  // ── Signalements ─────────────────────────────────────────────
+  it('POST /signalements { type, cibleId, raison, description }', async () => {
+    models.Signalement.findOne.mockResolvedValueOnce(null); // pas de doublon en attente
+    const d = contrat('signalement_creer', await request(app).post('/api/v1/signalements').set(auth()).send({ type: 'boutique', cibleId: ID.vendeur, raison: 'Produit non conforme', description: 'La commande ne correspond pas' }), { status: 201, cles: ['signalement'] });
+    expect(d.signalement).toMatchObject({ id: expect.any(String), type: 'boutique', cibleId: ID.vendeur, raison: expect.any(String), statut: 'en_attente' });
+  });
+  it('GET /signalements/mes-signalements', async () => {
+    const d = contrat('signalements_mes', await request(app).get('/api/v1/signalements/mes-signalements').set(auth()), { cles: ['signalements'] });
+    expect(d.signalements[0]).toMatchObject({ id: expect.any(String), type: expect.any(String), statut: expect.any(String) });
+  });
+
+  // ── Abonnement vendeur ───────────────────────────────────────
+  it('GET /vendeur/abonnement', async () => {
+    const d = contrat('abonnement_get', await request(app).get('/api/v1/vendeur/abonnement').set(auth('VENDEUR')), { cles: ['abonnement'] });
+    expect(d.abonnement).toMatchObject({ id: ID.abonnement, type: 'mensuel', statut: 'actif', montant: expect.any(String), dateDebut: expect.any(String), dateFin: expect.any(String) });
+  });
+  it('GET /vendeur/abonnement - aucun abonnement : tarif a payer', async () => {
+    models.Abonnement.findOne.mockResolvedValueOnce(null);
+    const d = contrat('abonnement_aucun', await request(app).get('/api/v1/vendeur/abonnement').set(auth('VENDEUR')), { cles: ['abonnement'] });
+    expect(d.abonnement).toMatchObject({ id: null, statut: 'aucun', montant: expect.any(String) });
+  });
+  it('POST /vendeur/abonnement/payer { methode, numeroTelephone, montant }', async () => {
+    models.PaiementAbonnement.findOne.mockResolvedValueOnce(null); // aucun paiement en attente
+    const d = contrat('abonnement_payer', await request(app).post('/api/v1/vendeur/abonnement/payer').set(auth('VENDEUR')).send({ methode: 'wave', numeroTelephone: '+221765556677', montant: 5000 }), { status: 201, cles: ['paiement'] });
+    expect(d.paiement).toMatchObject({ id: expect.any(String), montant: expect.any(String), methode: 'wave', statut: expect.any(String), transactionId: 'TX-TEST-001', urlPaiement: expect.any(String) });
+    expect(JSON.stringify(d)).not.toMatch(/fournisseur|chargeId/);
+  });
+  it('POST /vendeur/abonnement/renouveler {}', async () => {
+    models.PaiementAbonnement.findOne.mockResolvedValueOnce(null);
+    contrat('abonnement_renouveler', await request(app).post('/api/v1/vendeur/abonnement/renouveler').set(auth('VENDEUR')).send({}), { status: 201, cles: ['paiement'] });
+  });
+  it('GET /vendeur/abonnement/paiements', async () => {
+    const d = contrat('abonnement_paiements', await request(app).get('/api/v1/vendeur/abonnement/paiements').set(auth('VENDEUR')), { cles: ['paiements'] });
+    expect(d.paiements[0]).toMatchObject({ id: expect.any(String), montant: expect.any(String), methode: expect.any(String), statut: expect.any(String), createdAt: expect.any(String) });
+  });
+  it('GET /vendeur/abonnement/paiements/:id', async () => {
+    contrat('abonnement_paiement', await request(app).get(`/api/v1/vendeur/abonnement/paiements/${ID.paiementAbonnement}`).set(auth('VENDEUR')), { cles: ['paiement'] });
+  });
+
+  // ── Promotions vendeur ───────────────────────────────────────
+  it('GET /vendeur/promotions', async () => {
+    const d = contrat('vendeur_promotions', await request(app).get('/api/v1/vendeur/promotions').set(auth('VENDEUR')), { cles: ['promotions'] });
+    expect(d.promotions[0]).toMatchObject({ id: expect.any(String), produitId: ID.produit, prixPromo: expect.any(String), produit: { id: ID.produit, nom: expect.any(String) } });
+  });
+  it('POST /vendeur/promotions { produitId, titre, description, prixPromo, dateDebut, dateFin }', async () => {
+    const d = contrat('vendeur_promotion_creer', await request(app).post('/api/v1/vendeur/promotions').set(auth('VENDEUR')).send({ produitId: ID.produit, titre: 'Promo huile', description: 'Deux semaines', prixPromo: 1200, dateDebut: '2026-09-21T00:00:00.000Z', dateFin: '2026-10-05T00:00:00.000Z' }), { status: 201, cles: ['promotion'] });
+    expect(d.promotion).toMatchObject({ id: expect.any(String), produitId: ID.produit, section: expect.any(String) });
+  });
+  it('POST /vendeur/promotions - prix promo >= prix -> 400', async () => {
+    contrat('vendeur_promotion_400', await request(app).post('/api/v1/vendeur/promotions').set(auth('VENDEUR')).send({ produitId: ID.produit, titre: 'Promo', description: '', prixPromo: 1500, dateDebut: '2026-09-21T00:00:00.000Z', dateFin: '2026-10-05T00:00:00.000Z' }), { status: 400 });
+  });
+  it('PUT /vendeur/promotions/:id', async () => {
+    contrat('vendeur_promotion_modifier', await request(app).put(`/api/v1/vendeur/promotions/${ID.promotion}`).set(auth('VENDEUR')).send({ titre: 'Promo huile bio', description: 'Prolongee', prixPromo: 1100, dateDebut: '2026-09-21T00:00:00.000Z', dateFin: '2026-10-12T00:00:00.000Z' }), { cles: ['promotion'] });
+  });
+  it('DELETE /vendeur/promotions/:id', async () => {
+    contrat('vendeur_promotion_supprimer', await request(app).delete(`/api/v1/vendeur/promotions/${ID.promotion}`).set(auth('VENDEUR')), {});
   });
 
   // ── Erreurs : même enveloppe, bon code HTTP ──────────────────

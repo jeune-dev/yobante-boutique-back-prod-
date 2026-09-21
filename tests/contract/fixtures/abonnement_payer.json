@@ -1,0 +1,30 @@
+{
+  "requete": {
+    "methode": "POST",
+    "chemin": "/vendeur/abonnement/payer",
+    "query": {},
+    "corps": {
+      "methode": "wave",
+      "numeroTelephone": "+221765556677",
+      "montant": 5000
+    },
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Paiement initié",
+    "data": {
+      "paiement": {
+        "id": "b0000000-0000-4000-8000-000000000002",
+        "montant": "5000.00",
+        "methode": "wave",
+        "statut": "succes",
+        "transactionId": "TX-TEST-001",
+        "urlPaiement": "https://pay.exemple/TX-TEST-001",
+        "numeroTelephone": "+221765556677",
+        "payeAt": "2026-09-20T10:00:00.000Z",
+        "createdAt": "2026-09-20T10:00:00.000Z"
+      }
+    }
+  }
+}

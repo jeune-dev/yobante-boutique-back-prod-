@@ -22,5 +22,6 @@ router.use('/promotions', require('./promotion.route'));
 router.use('/blocs-promo', require('./blocPromo.route'));
 router.use('/frais-livraison', require('./frais-livraison.route'));
 router.use('/rayons', require('./rayon.route'));
+router.use('/signalements', require('./signalement.route'));
 
 module.exports = router;

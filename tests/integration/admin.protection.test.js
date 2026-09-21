@@ -72,6 +72,8 @@ const ENDPOINTS = [
   ['get', '/api/v1/admin/bannieres'],
   ['get', '/api/v1/admin/promotions'],
   ['get', '/api/v1/admin/blocs-promo'],
+  ['get', '/api/v1/admin/signalements'],
+  ['patch', `/api/v1/admin/signalements/${ID.ADMIN}`],
 ];
 
 describe('Protection des endpoints /api/v1/admin/*', () => {

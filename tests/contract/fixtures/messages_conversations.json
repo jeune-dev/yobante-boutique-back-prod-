@@ -10,7 +10,22 @@
     "success": true,
     "message": "Conversations",
     "data": {
-      "conversations": []
+      "conversations": [
+        {
+          "interlocuteurId": "10000000-0000-4000-8000-000000000002",
+          "interlocuteur": {
+            "id": "10000000-0000-4000-8000-000000000002",
+            "nom": "Diop",
+            "prenom": "Moussa",
+            "photoProfil": null
+          },
+          "dernierMessage": {
+            "contenu": "Bonjour",
+            "createdAt": "2026-09-20T10:00:00.000Z"
+          },
+          "nombreNonLus": 2
+        }
+      ]
     }
   }
 }

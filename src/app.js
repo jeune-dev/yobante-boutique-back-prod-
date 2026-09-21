@@ -190,13 +190,11 @@ app.use(
   motDePasseChange,
   require('./routes/client/commande.route')
 );
-app.use(
-  '/api/v1/paiements',
-  authenticatedLimiter,
-  auth,
-  motDePasseChange,
-  require('./routes/client/paiement.route')
-);
+// Callback et URL de retour des fournisseurs de paiement : appelés par le
+// fournisseur (pas par l'application), donc sans JWT — la confiance repose
+// sur la signature vérifiée dans le service. Un JWT exigé ici bloquait la
+// confirmation de tous les paiements en ligne.
+app.use('/api/v1/paiements', authenticatedLimiter, require('./routes/client/paiement.route'));
 app.use(
   '/api/v1/notifications',
   authenticatedLimiter,
@@ -212,6 +210,13 @@ app.use(
   require('./routes/client/deviceToken.route')
 );
 app.use('/api/v1/avis', require('./routes/client/avis.route'));
+app.use(
+  '/api/v1/signalements',
+  mutationLimiter,
+  auth,
+  motDePasseChange,
+  require('./routes/client/signalement.route')
+);
 app.use(
   '/api/v1/profile',
   mutationLimiter,

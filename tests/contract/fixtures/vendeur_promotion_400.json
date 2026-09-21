@@ -1,0 +1,21 @@
+{
+  "requete": {
+    "methode": "POST",
+    "chemin": "/vendeur/promotions",
+    "query": {},
+    "corps": {
+      "produitId": "20000000-0000-4000-8000-000000000001",
+      "titre": "Promo",
+      "description": "",
+      "prixPromo": 1500,
+      "dateDebut": "2026-09-21T00:00:00.000Z",
+      "dateFin": "2026-10-05T00:00:00.000Z"
+    },
+    "champs": null
+  },
+  "reponse": {
+    "success": false,
+    "message": "Le prix promotionnel doit être inférieur au prix actuel (1500.00)",
+    "data": null
+  }
+}

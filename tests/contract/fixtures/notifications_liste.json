@@ -19,7 +19,11 @@
           "type": "commande",
           "donnees": {},
           "lu": true,
-          "luAt": "2026-09-20T10:00:00.000Z"
+          "luAt": "2026-09-20T10:00:00.000Z",
+          "createdAt": "2026-09-20T10:00:00.000Z",
+          "updatedAt": "2026-09-20T10:00:00.000Z",
+          "corps": "Votre commande CMD-2026-0001 est validée",
+          "lue": false
         }
       ],
       "pagination": {

@@ -19,6 +19,8 @@
           "categorieId": "00000000-0000-4000-8000-0000000000bb",
           "ordre": 1,
           "isActive": true,
+          "createdAt": "2026-09-20T10:00:00.000Z",
+          "updatedAt": "2026-09-20T10:00:00.000Z",
           "categorie": {
             "id": "00000000-0000-4000-8000-0000000000aa",
             "nom": "Épicerie",
