@@ -50,8 +50,7 @@ const verifyResetCodeSchema = Joi.object({
 });
 
 const resetPasswordSchema = Joi.object({
-  email: Joi.string().trim().email().required(),
-  otp: Joi.string().trim().min(6).max(12).required(),
+  resetToken: Joi.string().required(),
   newPassword: motDePasse.required(),
 });
 
