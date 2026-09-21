@@ -56,6 +56,7 @@ class ProduitService {
     const { count, rows } = await Produit.findAndCountAll({
       where,
       include: CATALOGUE_INCLUDE,
+      attributes: { exclude: ['prixAchat'] },
       order,
       limit: l,
       offset,
@@ -71,6 +72,7 @@ class ProduitService {
   static async getProduitBySlug(slug) {
     const produit = await Produit.findOne({
       where: { slug, isActive: true },
+      attributes: { exclude: ['prixAchat'] },
       include: [
         { model: Categorie, as: 'categorie' },
         {
@@ -98,6 +100,7 @@ class ProduitService {
   static async getProduitsFeatured() {
     const produits = await Produit.findAll({
       where: { isFeatured: true, isActive: true },
+      attributes: { exclude: ['prixAchat'] },
       include: CATALOGUE_INCLUDE,
       limit: 10,
       order: [['createdAt', 'DESC']],

@@ -44,6 +44,11 @@ const forgotPasswordSchema = Joi.object({
   email: Joi.string().trim().email().required(),
 });
 
+const verifyResetCodeSchema = Joi.object({
+  email: Joi.string().trim().email().required(),
+  code: Joi.string().trim().min(6).max(6).required(),
+});
+
 const resetPasswordSchema = Joi.object({
   email: Joi.string().trim().email().required(),
   otp: Joi.string().trim().min(6).max(12).required(),

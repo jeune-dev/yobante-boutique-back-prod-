@@ -7,6 +7,7 @@
 // ─────────────────────────────────────────────────────────────
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
+const { validateAndFormatPhone } = require('../../utils/phone');
 const { Op } = require('sequelize');
 const { User, ProfilVendeur, Produit, sequelize } = require('../../models');
 const { bcryptConfig } = require('../../config/security');
@@ -108,13 +109,17 @@ class GestionVendeurService {
 
       const hashedPassword = await bcrypt.hash(motDePasseTemporaire, bcryptConfig.saltRounds);
 
+      const phone = data.phoneCountryCode
+        ? (validateAndFormatPhone(data.phoneNationalNumber, data.phoneCountryCode).phoneNumber || data.telephone)
+        : data.telephone;
+
       user = await User.create(
         {
           nom: data.nom,
           prenom: data.prenom,
           email: emailClean,
           password: hashedPassword,
-          telephone: data.telephone || null,
+          telephone: phone || null,
           role: ROLES.VENDEUR,
           isVerified: true,
           // Opérationnel dès la création : plus d'attente de validation.
@@ -132,7 +137,7 @@ class GestionVendeurService {
           description: data.description || null,
           infoLegale: data.infoLegale || null,
           adresseBoutique: data.adresseBoutique || null,
-          telephone: data.telephone || null,
+          telephone: phone || null,
           isActive: true,
           // Colonnes héritées du circuit de validation, conservées en base :
           // renseignées à true pour rester cohérentes avec un compte actif.
@@ -302,11 +307,154 @@ class GestionVendeurService {
     return GestionVendeurService._changerStatut(id, true);
   }
 
+  static async renvoyerIdentifiants(id) {
+    const t = await sequelize.transaction();
+    try {
+      const user = await User.findOne({
+        where: { id, role: ROLES.VENDEUR },
+        transaction: t,
+      });
+      if (!user) {
+        await t.rollback();
+        return { success: false, message: 'Vendeur introuvable' };
+      }
+      if (!user.email) {
+        await t.rollback();
+        return { success: false, message: "Impossible de renvoyer : aucune adresse email valide n'est associée." };
+      }
+      const emailClean = user.email.trim().toLowerCase();
+      const motDePasseTemporaire = GestionVendeurService._genererMotDePasse();
+      const hashedPassword = await bcrypt.hash(motDePasseTemporaire, bcryptConfig.saltRounds);
+
+      await User.update(
+        { password: hashedPassword, mustChangePassword: true, isActive: true },
+        { where: { id }, transaction: t }
+      );
+      await t.commit();
+    } catch (err) {
+      await t.rollback();
+      throw err;
+    }
+
+    const userAfter = await User.findOne({
+      where: { id, role: ROLES.VENDEUR },
+      include: [{ model: ProfilVendeur, as: 'profilVendeur' }],
+      attributes: { exclude: ['password'] },
+    });
+    if (!userAfter) return { success: false, message: 'Vendeur introuvable après mise à jour' };
+
+    const emailDest = userAfter.email.trim().toLowerCase();
+    const envoi = await sendEmail({
+      to: emailDest,
+      subject: 'Nouvel accès vendeur — Yobante Boutique',
+      html: vendeurAccesTemplate({
+        nom: userAfter.nom,
+        prenom: userAfter.prenom,
+        email: emailDest,
+        telephone: userAfter.telephone,
+        motDePasseTemporaire,
+        lienConnexion: process.env.FRONTEND_URL || 'https://yobante.com',
+      }),
+    });
+
+    if (!envoi.success) {
+      logger.error('[Vendeur] Renvoi identifiants échoué', { userId: id, error: envoi.error });
+      return { success: false, message: 'Le mot de passe a été réinitialisé mais l\'email n\'a pas pu être envoyé.' };
+    }
+
+    return {
+      success: true,
+      message: 'Nouveaux identifiants envoyés avec succès.',
+      emailEnvoye: true,
+      emailDest,
+    };
+  }
+
   static async updateProfil(id, data) {
-    const profil = await ProfilVendeur.findOne({ where: { userId: id } });
-    if (!profil) return { success: false, message: 'Profil vendeur introuvable' };
-    await profil.update(data);
-    return { success: true, message: 'Profil mis à jour', profil };
+    const t = await sequelize.transaction();
+    try {
+      const user = await User.findOne({
+        where: { id, role: ROLES.VENDEUR },
+        transaction: t,
+      });
+      if (!user) {
+        await t.rollback();
+        return { success: false, message: 'Vendeur introuvable' };
+      }
+
+      const userUpdates = {};
+      const phone = data.phoneCountryCode
+        ? (validateAndFormatPhone(data.phoneNationalNumber, data.phoneCountryCode).phoneNumber || data.telephone)
+        : data.telephone;
+
+      if (data.nom !== undefined) userUpdates.nom = data.nom ? data.nom.trim() : user.nom;
+      if (data.prenom !== undefined) userUpdates.prenom = data.prenom ? data.prenom.trim() : user.prenom;
+      if (phone !== undefined) userUpdates.telephone = phone ? phone.trim() : null;
+
+      if (data.email !== undefined && data.email.trim()) {
+        const emailClean = data.email.trim().toLowerCase();
+        if (emailClean !== user.email) {
+          const exist = await User.findOne({
+            where: { email: emailClean, id: { [Op.ne]: id } },
+            transaction: t,
+          });
+          if (exist) {
+            await t.rollback();
+            return { success: false, message: 'Cet email est déjà utilisé par un autre compte' };
+          }
+          userUpdates.email = emailClean;
+        }
+      }
+
+      if (Object.keys(userUpdates).length > 0) {
+        await user.update(userUpdates, { transaction: t });
+      }
+
+      let profil = await ProfilVendeur.findOne({ where: { userId: id }, transaction: t });
+      const profilUpdates = {};
+      if (data.nomBoutique !== undefined) profilUpdates.nomBoutique = data.nomBoutique ? data.nomBoutique.trim() : null;
+      if (data.description !== undefined) profilUpdates.description = data.description ? data.description.trim() : null;
+      if (data.adresseBoutique !== undefined) profilUpdates.adresseBoutique = data.adresseBoutique ? data.adresseBoutique.trim() : null;
+      if (data.infoLegale !== undefined) profilUpdates.infoLegale = data.infoLegale ? data.infoLegale.trim() : null;
+      if (phone !== undefined) profilUpdates.telephone = phone ? phone.trim() : null;
+      if (data.latitude !== undefined) profilUpdates.latitude = data.latitude;
+      if (data.longitude !== undefined) profilUpdates.longitude = data.longitude;
+
+      if (profil) {
+        if (Object.keys(profilUpdates).length > 0) {
+          await profil.update(profilUpdates, { transaction: t });
+        }
+      } else if (data.nomBoutique) {
+        profil = await ProfilVendeur.create(
+          {
+            userId: id,
+            nomBoutique: data.nomBoutique,
+            description: data.description || null,
+            infoLegale: data.infoLegale || null,
+            adresseBoutique: data.adresseBoutique || null,
+            telephone: data.telephone || user.telephone,
+            isActive: user.isActive,
+            isValidatedStep1: true,
+            isValidatedStep2: true,
+          },
+          { transaction: t }
+        );
+      }
+
+      await t.commit();
+    } catch (err) {
+      await t.rollback();
+      throw err;
+    }
+
+    GestionVendeurService._invaliderCacheAuth(id);
+
+    const vendeurMisAJour = await GestionVendeurService.getVendeur(id);
+    return {
+      success: true,
+      message: 'Profil vendeur mis à jour avec succès',
+      vendeur: vendeurMisAJour.vendeur,
+    };
   }
 }
 

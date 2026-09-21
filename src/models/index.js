@@ -30,6 +30,8 @@ const Message = require('./Message.model');
 const Signalement = require('./Signalement.model');
 const Abonnement = require('./Abonnement.model');
 const PaiementAbonnement = require('./PaiementAbonnement.model');
+const AdminPasswordReset = require('./AdminPasswordReset.model');
+const PasswordResetToken = require('./PasswordResetToken.model');
 
 // ── User associations ──────────────────────────────────────────
 User.hasMany(Commande, { foreignKey: 'userId', as: 'commandes', onDelete: 'CASCADE' });
@@ -171,6 +173,14 @@ PaiementAbonnement.belongsTo(User, { foreignKey: 'vendeurId', as: 'vendeur' });
 Abonnement.hasMany(PaiementAbonnement, { foreignKey: 'abonnementId', as: 'paiements' });
 PaiementAbonnement.belongsTo(Abonnement, { foreignKey: 'abonnementId', as: 'abonnement' });
 
+// ── Admin Password Reset associations ──────────────────────────
+AdminPasswordReset.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+User.hasMany(AdminPasswordReset, { foreignKey: 'userId', as: 'adminPasswordResets', onDelete: 'CASCADE' });
+
+// ── Password Reset Token associations ──────────────────────────
+PasswordResetToken.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+User.hasMany(PasswordResetToken, { foreignKey: 'userId', as: 'passwordResetTokens', onDelete: 'CASCADE' });
+
 // ── Export all models ──────────────────────────────────────────
 module.exports = {
   sequelize,
@@ -201,4 +211,6 @@ module.exports = {
   Signalement,
   Abonnement,
   PaiementAbonnement,
+  AdminPasswordReset,
+  PasswordResetToken,
 };

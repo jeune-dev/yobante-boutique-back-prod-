@@ -22,6 +22,8 @@ const creerVendeurSchema = Joi.object({
     'string.email': "L'email est invalide",
   }),
   telephone: Joi.string().trim().max(20).allow('', null).optional(),
+  phoneCountryCode: Joi.string().trim().length(2).uppercase().optional(),
+  phoneNationalNumber: Joi.string().trim().max(15).optional(),
   nomBoutique: Joi.string().trim().max(200).required().messages({
     'any.required': 'Le nom de la boutique est obligatoire',
     'string.empty': 'Le nom de la boutique est obligatoire',
@@ -32,11 +34,16 @@ const creerVendeurSchema = Joi.object({
 });
 
 const updateProfilVendeurSchema = Joi.object({
+  nom: Joi.string().trim().max(100).optional(),
+  prenom: Joi.string().trim().max(100).optional(),
+  email: Joi.string().trim().email().optional(),
+  telephone: Joi.string().trim().max(20).allow('', null).optional(),
+  phoneCountryCode: Joi.string().trim().length(2).uppercase().optional(),
+  phoneNationalNumber: Joi.string().trim().max(15).optional(),
   nomBoutique: Joi.string().trim().max(200).optional(),
   adresseBoutique: Joi.string().trim().max(500).allow('', null).optional(),
   description: Joi.string().trim().allow('', null).optional(),
   infoLegale: Joi.string().trim().allow('', null).optional(),
-  telephone: Joi.string().trim().max(20).allow('', null).optional(),
   latitude: Joi.number().min(-90).max(90).allow(null).optional(),
   longitude: Joi.number().min(-180).max(180).allow(null).optional(),
 }).min(1);

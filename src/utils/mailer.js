@@ -36,7 +36,7 @@ function sendResetPasswordEmail(to, code) {
   return sendMail({
     to,
     subject: 'Réinitialisation de votre mot de passe — Yobante',
-    html: `<p>Votre code de réinitialisation est : <strong>${code}</strong></p><p>Ce code expire dans 1 heure.</p>`,
+    html: `<p>Votre code de réinitialisation est : <strong>${code}</strong></p><p>Ce code expire dans 10 minutes.</p>`,
   });
 }
 

@@ -9,6 +9,7 @@ const sessionCtrl = require('../../controllers/admin/session.controller');
 // (la chaîne auth → motDePasseChange → adminMiddleware de app.js s'applique).
 router.get('/me', sessionCtrl.me);
 
+router.use('/auth', require('./auth.route'));
 router.use('/categories', require('./categorie.route'));
 router.use('/produits', require('./produit.route'));
 router.use('/commandes', require('./commande.route'));

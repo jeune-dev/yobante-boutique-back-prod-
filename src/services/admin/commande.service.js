@@ -41,6 +41,93 @@ const TRANSITIONS = {
 };
 
 class GestionCommandeService {
+  static async creerCommandeAdmin(userId, { adresseId, note, methode, items = [], dateLivraisonSouhaitee = null }) {
+    const lockKey = await acquire(`commande:${userId}`);
+    try {
+      const adresse = await Adresse.findOne({ where: { id: adresseId, userId } });
+      if (!adresse) return { success: false, message: 'Adresse introuvable' };
+
+      const lignesPanier = await Promise.all(
+        items.map(async (item) => {
+          const produit = await Produit.findByPk(item.produitId);
+          if (!produit) throw new Error(`Produit ${item.produitId} introuvable`);
+          return { produitId: item.produitId, quantite: item.quantite, produit };
+        })
+      );
+
+      if (!lignesPanier.length)
+        return { success: false, message: 'Sélectionnez au moins un article' };
+
+      const fraisLivraison = await _getFraisLivraison(adresse.ville);
+
+      const t = await sequelize.transaction();
+      try {
+        const lignesTotal = round2(
+          lignesPanier.reduce(
+            (sum, l) => sum + Math.round(Number(l.produit.prix) * 100) * l.quantite,
+            0
+          ) / 100
+        );
+
+        const commande = await Commande.create(
+          {
+            reference: _genererReference(),
+            userId,
+            adresseId,
+            montantTotal: round2(lignesTotal + fraisLivraison),
+            fraisLivraison,
+            note,
+            statut: 'validee',
+            dateLivraisonSouhaitee,
+          },
+          { transaction: t }
+        );
+
+        const commandeItems = [];
+        for (const ligne of lignesPanier) {
+          const quantite = Number(ligne.quantite);
+          const [nbLignesAffectees] = await Produit.update(
+            { stock: sequelize.literal(`stock - ${quantite}`) },
+            { where: { id: ligne.produitId, stock: { [Op.gte]: quantite } }, transaction: t }
+          );
+
+          if (nbLignesAffectees === 0) {
+            await t.rollback();
+            return { success: false, message: `Stock insuffisant pour "${ligne.produit.nom}"` };
+          }
+
+          commandeItems.push({
+            commandeId: commande.id,
+            produitId: ligne.produitId,
+            quantite,
+            prixUnitaire: ligne.produit.prix,
+            sousTotal: calcSousTotal(ligne.produit.prix, quantite),
+          });
+        }
+
+        await CommandeItem.bulkCreate(commandeItems, { transaction: t });
+        await Paiement.create(
+          {
+            commandeId: commande.id,
+            userId,
+            montant: commande.montantTotal,
+            methode,
+            statut: 'succes',
+          },
+          { transaction: t }
+        );
+
+        await t.commit();
+        return { success: true, message: 'Commande créée avec succès', commandeId: commande.id };
+      } catch (err) {
+        await t.rollback();
+        throw err;
+      }
+    } finally {
+      await release(lockKey);
+    }
+  }
+
   static async getAllCommandes({ page, limit, statut, userId, reference } = {}) {
     const { page: p, limit: l, offset } = paginate(page, limit);
 
@@ -178,6 +265,45 @@ class GestionCommandeService {
     });
 
     return { success: true, commandes };
+  }
+
+  static async creerCommandeAdmin(userId, { adresseId, note, methode, items = [], dateLivraisonSouhaitee = null }) {
+    const lockKey = await acquire(`commande:${userId}`);
+    try {
+      const adresse = await Adresse.findOne({ where: { id: adresseId, userId } });
+      if (!adresse) return { success: false, message: 'Adresse introuvable' };
+      let lignesPanier = [];
+      if (items && items.length > 0) {
+        lignesPanier = await Promise.all(
+          items.map(async (item) => {
+            const produit = await Produit.findByPk(item.produitId);
+            if (!produit) throw new Error(`Produit ${item.produitId} introuvable`);
+            return { produitId: item.produitId, quantite: item.quantite, produit };
+          })
+        );
+      }
+      if (!lignesPanier.length) return { success: false, message: 'Sélectionnez au moins un article' };
+      for (const ligne of lignesPanier) {
+        if (!ligne.produit.isActive) return { success: false, message: `"${ligne.produit.nom}" n'est plus disponible` };
+      }
+      const fraisLivraison = await _getFraisLivraison(adresse.ville);
+      const t = await sequelize.transaction();
+      try {
+        const lignesTotal = round2(lignesPanier.reduce((sum, l) => sum + Math.round(Number(l.produit.prix) * 100) * l.quantite, 0) / 100);
+        const commande = await Commande.create({ reference: _genererReference(), userId, adresseId, montantTotal: round2(lignesTotal + fraisLivraison), fraisLivraison, note, statut: 'validee', dateLivraisonSouhaitee }, { transaction: t });
+        const commandeItems = [];
+        for (const ligne of lignesPanier) {
+          const quantite = Number(ligne.quantite);
+          const [nbLignesAffectees] = await Produit.update({ stock: sequelize.literal(`stock - ${quantite}`) }, { where: { id: ligne.produitId, stock: { [Op.gte]: quantite } }, transaction: t });
+          if (nbLignesAffectees === 0) { await t.rollback(); return { success: false, message: `Stock insuffisant pour "${ligne.produit.nom}"` }; }
+          commandeItems.push({ commandeId: commande.id, produitId: ligne.produitId, quantite, prixUnitaire: ligne.produit.prix, sousTotal: calcSousTotal(ligne.produit.prix, quantite) });
+        }
+        await CommandeItem.bulkCreate(commandeItems, { transaction: t });
+        await Paiement.create({ commandeId: commande.id, userId, montant: commande.montantTotal, methode, statut: 'succes' }, { transaction: t });
+        await t.commit();
+        return { success: true, message: 'Commande créée avec succès', commandeId: commande.id };
+      } catch (err) { await t.rollback(); throw err; }
+    } finally { await release(lockKey); }
   }
 
   static async getKpiCommandes() {

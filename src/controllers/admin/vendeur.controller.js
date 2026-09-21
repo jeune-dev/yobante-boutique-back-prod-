@@ -38,8 +38,14 @@ exports.debloquerVendeur = asyncHandler(async (req, res) => {
   return ok(res, { statut: result.statut, isBlocked: result.isBlocked }, result.message);
 });
 
+exports.renvoyerIdentifiants = asyncHandler(async (req, res) => {
+  const result = await GestionVendeurService.renvoyerIdentifiants(req.params.id);
+  if (!result.success) throw new BadRequestError(result.message);
+  return ok(res, result, result.message);
+});
+
 exports.updateProfil = asyncHandler(async (req, res) => {
   const result = await GestionVendeurService.updateProfil(req.params.id, req.body);
-  if (!result.success) throw new NotFoundError(result.message);
-  return ok(res, { profil: result.profil }, result.message);
+  if (!result.success) throw new BadRequestError(result.message);
+  return ok(res, { vendeur: result.vendeur }, result.message);
 });

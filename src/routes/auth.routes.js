@@ -15,6 +15,7 @@ const {
   logoutSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  verifyResetCodeSchema,
   changePasswordSchema,
 } = require('../validations/auth.validation');
 
@@ -31,6 +32,7 @@ router.post(
   validate(forgotPasswordSchema),
   ctrl.forgotPassword
 );
+router.post('/verify-reset-code', authLimiter, validate(verifyResetCodeSchema), ctrl.verifyResetCode);
 router.post('/reset-password', authLimiter, validate(resetPasswordSchema), ctrl.resetPassword);
 router.put(
   '/change-password',

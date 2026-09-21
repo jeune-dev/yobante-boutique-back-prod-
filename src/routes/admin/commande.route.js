@@ -16,5 +16,6 @@ router.patch('/:id/rejeter', adminMiddleware, validate(rejeterCommandeSchema), c
 router.patch('/:id/preparation', adminMiddleware, ctrl.mettreEnPreparation);
 router.patch('/:id/expedier', adminMiddleware, ctrl.marquerExpediee);
 router.patch('/:id/livrer', adminMiddleware, ctrl.marquerLivree);
+router.post('/', adminMiddleware, ctrl.creer);
 
 module.exports = router;

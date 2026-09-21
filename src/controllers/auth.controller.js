@@ -164,10 +164,17 @@ exports.forgotPassword = asyncHandler(async (req, res) => {
  * POST /api/auth/reset-password
  * Réinitialiser le mot de passe avec OTP
  */
-exports.resetPassword = asyncHandler(async (req, res) => {
-  const { email, otp, newPassword } = req.body;
+exports.verifyResetCode = asyncHandler(async (req, res) => {
+  const { email, code } = req.body;
+  const result = await AuthService.verifyResetCode(email, code);
+  if (!result.success) throw new BadRequestError(result.message);
+  return ok(res, { resetToken: result.resetToken }, result.message);
+});
 
-  const result = await AuthService.resetPassword(email, otp, newPassword);
+exports.resetPassword = asyncHandler(async (req, res) => {
+  const { resetToken, newPassword } = req.body;
+
+  const result = await AuthService.resetPassword(resetToken, newPassword);
 
   if (!result.success) throw new BadRequestError(result.message);
 

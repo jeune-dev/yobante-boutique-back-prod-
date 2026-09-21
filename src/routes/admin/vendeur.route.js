@@ -20,5 +20,6 @@ router.put('/:id', validate(updateProfilVendeurSchema), ctrl.updateProfil);
 router.get('/:id/statut', ctrl.getStatut);
 router.patch('/:id/bloquer', ctrl.bloquerVendeur);
 router.patch('/:id/debloquer', ctrl.debloquerVendeur);
+router.post('/:id/renvoyer-identifiants', ctrl.renvoyerIdentifiants);
 
 module.exports = router;
