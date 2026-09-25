@@ -30,47 +30,55 @@ exports.toggleActivation = asyncHandler(async (req, res) => {
 // ──────────────────────────── ADMINS ───────────────────────────────────────
 
 exports.listeAdmins = asyncHandler(async (req, res) => {
-  const result = await GestionAdminService.listerAdmins({
-    page: req.query.page,
-    limit: req.query.limit,
-  });
-  return ok(
-    res,
-    { admins: result.admins.map(formatUser), pagination: result.pagination },
-    result.message
-  );
+  const { page, limit, search, statut } = req.query;
+  const result = await GestionAdminService.listerAdmins({ page, limit, search, statut });
+  return ok(res, { admins: result.admins, pagination: result.pagination }, result.message);
+});
+
+exports.getAdmin = asyncHandler(async (req, res) => {
+  const result = await GestionAdminService.getAdmin(req.params.id);
+  if (!result.success) throw new NotFoundError(result.message);
+  return ok(res, { admin: result.admin }, 'Administrateur');
 });
 
 exports.ajouterAdmin = asyncHandler(async (req, res) => {
-  const { nom, prenom, email, password, telephone } = req.body;
-  const result = await GestionAdminService.ajouterAdmin({
-    nom,
-    prenom,
-    email,
-    password,
-    telephone,
-  });
+  const { nom, prenom, email, telephone } = req.body;
+  const result = await GestionAdminService.ajouterAdmin({ nom, prenom, email, telephone });
   if (!result.success) throw new BadRequestError(result.message);
-  return created(res, { admin: formatUser(result.admin) }, result.message);
-});
-
-exports.supprimerAdmin = asyncHandler(async (req, res) => {
-  const result = await GestionAdminService.supprimerAdmin(req.params.id);
-  if (!result.success) throw new NotFoundError(result.message);
-  return ok(res, {}, result.message);
+  return created(res, { admin: result.admin, emailEnvoye: result.emailEnvoye }, result.message);
 });
 
 exports.modifierAdmin = asyncHandler(async (req, res) => {
-  const { nom, prenom, telephone } = req.body;
-  const result = await GestionAdminService.modifierAdmin(req.params.id, { nom, prenom, telephone });
-  if (!result.success) throw new NotFoundError(result.message);
-  return ok(res, { admin: formatUser(result.admin) }, result.message);
+  const { nom, prenom, email, telephone } = req.body;
+  const result = await GestionAdminService.modifierAdmin(req.params.id, {
+    nom,
+    prenom,
+    email,
+    telephone,
+  });
+  if (!result.success) {
+    if (result.message === 'Administrateur introuvable') throw new NotFoundError(result.message);
+    throw new BadRequestError(result.message);
+  }
+  return ok(res, { admin: result.admin }, result.message);
 });
 
-exports.toggleActivationAdmin = asyncHandler(async (req, res) => {
-  const result = await GestionAdminService.toggleActivationAdmin(req.params.id);
-  if (!result.success) throw new NotFoundError(result.message);
-  return ok(res, { admin: formatUser(result.admin) }, result.message);
+exports.renvoyerIdentifiantsAdmin = asyncHandler(async (req, res) => {
+  const result = await GestionAdminService.renvoyerIdentifiants(req.params.id, req.user.id);
+  if (!result.success) throw new BadRequestError(result.message);
+  return ok(res, { emailEnvoye: result.emailEnvoye, emailDest: result.emailDest }, result.message);
+});
+
+exports.bloquerAdmin = asyncHandler(async (req, res) => {
+  const result = await GestionAdminService.bloquerAdmin(req.params.id, req.user.id);
+  if (!result.success) throw new BadRequestError(result.message);
+  return ok(res, { statut: result.statut, isBlocked: result.isBlocked }, result.message);
+});
+
+exports.debloquerAdmin = asyncHandler(async (req, res) => {
+  const result = await GestionAdminService.debloquerAdmin(req.params.id, req.user.id);
+  if (!result.success) throw new BadRequestError(result.message);
+  return ok(res, { statut: result.statut, isBlocked: result.isBlocked }, result.message);
 });
 
 // ──────────────────────────── CLIENTS ──────────────────────────────────────
