@@ -65,6 +65,11 @@ module.exports = {
   refreshSchema,
   logoutSchema,
   forgotPasswordSchema,
+  // Absent de cette liste, `verifyResetCodeSchema` arrivait à `validate()`
+  // sous la forme `undefined` : la route POST /auth/verify-reset-code
+  // répondait 500 à CHAQUE appel, et la réinitialisation du mot de passe
+  // était impossible pour tous les utilisateurs.
+  verifyResetCodeSchema,
   resetPasswordSchema,
   changePasswordSchema,
 };
