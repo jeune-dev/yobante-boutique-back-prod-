@@ -59,6 +59,24 @@ const changePasswordSchema = Joi.object({
   newPassword: motDePasse.required(),
 });
 
+// Premier changement du mot de passe temporaire (admin, vendeur) — les
+// règles fines (confirmation, longueur) restent dans le service, qui renvoie
+// déjà des messages attendus par le mobile et le dashboard.
+const changerPremierMdpSchema = Joi.object({
+  ancienPassword: Joi.string().required().messages({
+    'any.required': 'Le mot de passe temporaire est obligatoire',
+    'string.empty': 'Le mot de passe temporaire est obligatoire',
+  }),
+  nouveauPassword: Joi.string().required().messages({
+    'any.required': 'Le nouveau mot de passe est obligatoire',
+    'string.empty': 'Le nouveau mot de passe est obligatoire',
+  }),
+  confirmPassword: Joi.string().required().messages({
+    'any.required': 'La confirmation du mot de passe est obligatoire',
+    'string.empty': 'La confirmation du mot de passe est obligatoire',
+  }),
+});
+
 module.exports = {
   registerSchema,
   loginSchema,
@@ -72,4 +90,5 @@ module.exports = {
   verifyResetCodeSchema,
   resetPasswordSchema,
   changePasswordSchema,
+  changerPremierMdpSchema,
 };

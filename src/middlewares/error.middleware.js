@@ -101,6 +101,11 @@ const errorMiddleware = (err, req, res, _next) => {
     });
   if (err.name === 'SequelizeUniqueConstraintError')
     return repondre(res, 409, 'Cette ressource existe déjà');
+  // 22P02 : PostgreSQL refuse la valeur (UUID mal formé dans l'URL, valeur
+  // hors d'un ENUM…). C'est une donnée invalide envoyée par l'appelant, pas
+  // une panne du serveur.
+  if (err.name === 'SequelizeDatabaseError' && err.parent?.code === '22P02')
+    return repondre(res, 400, 'Identifiant ou valeur invalide');
   if (err.name === 'SequelizeForeignKeyConstraintError')
     return repondre(res, 400, 'Référence invalide : ressource liée introuvable');
   if (

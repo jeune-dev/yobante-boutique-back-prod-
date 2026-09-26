@@ -6,6 +6,7 @@ const ctrl = require('../../controllers/admin/user.controller');
 const adminMiddleware = require('../../middlewares/admin.middleware');
 const validate = require('../../middlewares/validate.middleware');
 const { creerAdminSchema, modifierAdminSchema } = require('../../validations/admin.validation');
+const { adresseSchema } = require('../../validations/adresse.validation');
 
 // ── Route unifiée ────────────────────────────────────────────────────────────
 router.get('/', adminMiddleware, ctrl.getAll);
@@ -28,5 +29,16 @@ router.get('/clients/count', adminMiddleware, ctrl.nombreClients);
 router.get('/clients/export', adminMiddleware, ctrl.exportClients);
 router.patch('/clients/:id/activer', adminMiddleware, ctrl.activerClient);
 router.patch('/clients/:id/desactiver', adminMiddleware, ctrl.desactiverClient);
+router.get('/clients/:id/adresses', adminMiddleware, ctrl.adressesClient);
+router.post(
+  '/clients/:id/adresses',
+  adminMiddleware,
+  validate(adresseSchema),
+  ctrl.ajouterAdresseClient
+);
+
+// Fiche client (écran Clients → détail). Déclarée en dernier : les chemins
+// littéraux (/admins, /clients…) doivent être essayés avant `/:id`.
+router.get('/:id', adminMiddleware, ctrl.getClient);
 
 module.exports = router;

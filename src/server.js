@@ -106,6 +106,30 @@ async function applyRuntimeMigrations() {
 }
 
 /**
+ * Aligne la base sur les modèles avant de servir : colonnes / valeurs d'ENUM
+ * manquantes ajoutées, puis tables et index manquants créés (sync).
+ * Un `sequelize.sync()` seul échouait dès qu'un index portait sur une colonne
+ * absente, et le serveur s'arrêtait — y compris pendant un déploiement, avant
+ * que `npm run migrate` ait pu réparer le schéma. Uniquement additif.
+ * Un échec est journalisé sans empêcher le démarrage : l'API reste
+ * disponible et `npm run schema:verifier` donne le détail.
+ */
+async function synchroniserSchema() {
+  const { reconcilierSchema } = require('./utils/schemaReconciliation');
+  try {
+    const ajoutes = await reconcilierSchema(sequelize, {
+      log: (message) => logger.warn(`[schéma] ${message}`),
+    });
+    const total = ajoutes.tables.length + ajoutes.colonnes.length + ajoutes.valeursEnum.length;
+    if (total) logger.warn(`[schéma] ${total} élément(s) manquant(s) ajouté(s) au démarrage`);
+  } catch (err) {
+    logger.error('[schéma] Alignement de la base impossible au démarrage', {
+      error: err.message,
+    });
+  }
+}
+
+/**
  * Démarre ce process en tant que serveur applicatif
  */
 async function demarrerWorker() {
@@ -117,7 +141,7 @@ async function demarrerWorker() {
       if (estWorkerPrincipal) {
         // Production: sync({ force: false }) crée UNIQUEMENT les tables manquantes
         // Migrations Sequelize CLI (exécutées via SSH) gèrent les ALTER TABLE explicitement
-        await sequelize.sync({ force: false });
+        await synchroniserSchema();
         await applyRuntimeMigrations();
         logger.info('Connexion PostgreSQL établie et tables synchronisées (production)');
       } else {
@@ -127,7 +151,7 @@ async function demarrerWorker() {
     } else {
       // Dev: sync({ force: false }) comme la prod — évite les erreurs SQL avec ENUM
       // Les migrations Sequelize CLI gèrent les ALTER TABLE explicitement
-      await sequelize.sync({ force: false });
+      await synchroniserSchema();
       logger.info('Base de données synchronisée (mode développement)');
     }
 

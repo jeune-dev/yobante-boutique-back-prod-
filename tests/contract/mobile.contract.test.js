@@ -214,7 +214,7 @@ function doubler() {
     return typeof fn === 'function' ? fn(t) : t;
   });
   jest.spyOn(sequelize, 'query').mockImplementation(async (sql = '') =>
-    /pg_try_advisory_lock/.test(String(sql)) ? [{ pg_try_advisory_lock: true }] : []
+    /pg_try_advisory(_xact)?_lock/.test(String(sql)) ? [{ pg_try_advisory_lock: true, ok: true }] : []
   );
 }
 

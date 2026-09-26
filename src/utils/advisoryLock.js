@@ -12,6 +12,10 @@
  * ✅ PERF: Cache LRU pour éviter de recalculer le hash à chaque fois
  */
 const { sequelize } = require('../models');
+const { AppError } = require('../errors/AppError');
+
+const MESSAGE_OCCUPE =
+  'Une opération est déjà en cours pour ce compte. Réessayez dans quelques secondes.';
 
 const lockKeyCache = new Map();
 const MAX_CACHE_SIZE = 10000;
@@ -54,11 +58,7 @@ async function acquire(key) {
     { replacements: { key: lockKey }, type: sequelize.QueryTypes.SELECT }
   );
   if (!ok) {
-    const AppError = require('./AppError');
-    throw new AppError(
-      'Une opération est déjà en cours pour ce compte. Réessayez dans quelques secondes.',
-      429
-    );
+    throw new AppError(MESSAGE_OCCUPE, 429);
   }
   return lockKey;
 }
@@ -74,4 +74,21 @@ async function release(lockKey) {
   }
 }
 
-module.exports = { acquire, release };
+/**
+ * Verrou de TRANSACTION : pris sur la connexion de `transaction`, libéré par
+ * PostgreSQL au COMMIT/ROLLBACK. À préférer à `acquire`/`release` : ces
+ * derniers passent par le pool, et le déverrouillage peut atterrir sur une
+ * autre connexion que celle qui détient le verrou (verrou orphelin qui bloque
+ * ensuite les opérations suivantes du même compte).
+ * Lance une AppError 429 si le verrou est déjà pris.
+ */
+async function acquireXact(key, transaction) {
+  const [row] = await sequelize.query(`SELECT pg_try_advisory_xact_lock(:key) AS ok`, {
+    replacements: { key: _hashKey(key) },
+    type: sequelize.QueryTypes.SELECT,
+    transaction,
+  });
+  if (!row || !row.ok) throw new AppError(MESSAGE_OCCUPE, 429);
+}
+
+module.exports = { acquire, release, acquireXact };

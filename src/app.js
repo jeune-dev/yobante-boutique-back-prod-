@@ -98,38 +98,25 @@ app.use(cookieParser());
 app.use('/api/v1/upload', express.json({ limit: '50mb' }));
 app.use('/api/v1/import', express.json({ limit: '10mb' }));
 
-// ✅ PERF: HTTP Caching middleware
+// ── Cache HTTP ────────────────────────────────────────────────────────────
+// Seul le catalogue PUBLIC consulté sans jeton peut être mis en cache
+// (5 min). Une réponse liée à un compte — admin, vendeur, ou toute requête
+// portant un jeton — ne l'est jamais : auparavant `/admin/produits`,
+// `/admin/rayons`… passaient par la règle « catalogue » (le test portait sur
+// `includes('/produits')`) et revenaient avec `public, max-age=300` : le
+// dashboard affichait des listes périmées jusqu'à 5 minutes après une
+// création ou une validation, et un proxy pouvait les servir à un tiers.
+const CATALOGUE_PUBLIC = /^\/api\/v1\/(produits|categories|rayons)(\/|$)/;
 app.use((req, res, next) => {
-  if (req.method === 'GET') {
-    // Données publiques (produits, catégories): cache 5 minutes
-    if (
-      req.path.includes('/produits') ||
-      req.path.includes('/categories') ||
-      req.path.includes('/rayons')
-    ) {
-      res.setHeader('Cache-Control', 'public, max-age=300'); // 5 minutes
-    }
-    // Données utilisateur: ne pas cacher
-    else if (
-      req.path.includes('/profile') ||
-      req.path.includes('/panier') ||
-      req.path.includes('/commandes')
-    ) {
-      res.setHeader('Cache-Control', 'private, no-cache');
-    }
-    // Admin: ne jamais cacher
-    else if (req.path.includes('/admin')) {
-      res.setHeader('Cache-Control', 'private, no-cache, no-store');
-    }
-    // Health check: cache court
-    else if (req.path === '/health') {
-      res.setHeader('Cache-Control', 'public, max-age=10');
-    }
-  } else {
-    // Mutations: ne jamais cacher
+  if (req.method !== 'GET') {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  } else if (req.path === '/health') {
+    res.setHeader('Cache-Control', 'public, max-age=10');
+  } else if (!req.headers.authorization && CATALOGUE_PUBLIC.test(req.path)) {
+    res.setHeader('Cache-Control', 'public, max-age=300');
+  } else {
+    res.setHeader('Cache-Control', 'private, no-cache, no-store');
   }
-
   next();
 });
 

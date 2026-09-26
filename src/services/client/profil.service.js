@@ -73,7 +73,10 @@ class ProfilService {
     // (deux requêtes simultanées pourraient dépasser MAX_ADRESSES sans ça)
     const t = await sequelize.transaction();
     try {
-      const nbAdresses = await Adresse.count({ where: { userId }, transaction: t, lock: true });
+      // PostgreSQL refuse `FOR UPDATE` sur un COUNT (agrégat) : on verrouille
+      // la ligne de l'utilisateur, ce qui sérialise les ajouts d'un même compte.
+      await User.findByPk(userId, { attributes: ['id'], transaction: t, lock: t.LOCK.UPDATE });
+      const nbAdresses = await Adresse.count({ where: { userId }, transaction: t });
       if (nbAdresses >= MAX_ADRESSES) {
         await t.rollback();
         return {

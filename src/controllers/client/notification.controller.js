@@ -41,6 +41,10 @@ exports.enregistrerAppareil = asyncHandler(async (req, res) => {
 
 /** POST /api/v1/device-token/unregister */
 exports.supprimerAppareil = asyncHandler(async (req, res) => {
+  const { token } = req.body || {};
+  if (typeof token !== 'string' || !token.trim()) {
+    throw new BadRequestError("Le jeton de l'appareil est obligatoire");
+  }
   const resultat = await NotificationService.supprimerAppareil(req.user.id, req.body.token);
   return ok(res, {}, resultat.message);
 });

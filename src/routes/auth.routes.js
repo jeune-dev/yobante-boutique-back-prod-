@@ -17,6 +17,7 @@ const {
   resetPasswordSchema,
   verifyResetCodeSchema,
   changePasswordSchema,
+  changerPremierMdpSchema,
 } = require('../validations/auth.validation');
 
 router.post('/register', registerLimiter, validate(registerSchema), ctrl.register);
@@ -46,6 +47,12 @@ router.put(
   validate(changePasswordSchema),
   ctrl.changePassword
 );
-router.post('/changer-premier-mdp', mutationLimiter, auth, ctrl.changerPremierMotDePasse);
+router.post(
+  '/changer-premier-mdp',
+  mutationLimiter,
+  auth,
+  validate(changerPremierMdpSchema),
+  ctrl.changerPremierMotDePasse
+);
 
 module.exports = router;

@@ -98,7 +98,7 @@ const rateLimitConfig = {
 // Limite par utilisateur authentifié (clé = req.user.id, pas l'IP)
 const authenticatedRateLimitConfig = {
   windowMs: 15 * 60 * 1000,
-  max: 300,
+  max: parseInt(process.env.AUTHENTICATED_RATE_LIMIT_MAX || '300', 10),
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => req.user?.id || req.ip,
@@ -125,7 +125,7 @@ const authRateLimitConfig = {
 // Mutations sensibles (modifier/supprimer profil, changement mot de passe)
 const mutationRateLimitConfig = {
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: parseInt(process.env.MUTATION_RATE_LIMIT_MAX || '20', 10),
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -138,7 +138,7 @@ const mutationRateLimitConfig = {
 // Routes admin — modérément strict
 const adminRateLimitConfig = {
   windowMs: 15 * 60 * 1000,
-  max: 200,
+  max: parseInt(process.env.ADMIN_RATE_LIMIT_MAX || '200', 10),
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Trop de requêtes admin. Veuillez réessayer.', data: null },

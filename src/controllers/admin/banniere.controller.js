@@ -33,7 +33,7 @@ exports.toggleActive = asyncHandler(async (req, res) => {
 });
 
 exports.reordonner = asyncHandler(async (req, res) => {
-  const result = await BanniereService.reordonner(req.body.ordres);
+  const result = await BanniereService.reordonner(req.body.ordres || req.body.elements);
   return ok(res, {}, result.message);
 });
 

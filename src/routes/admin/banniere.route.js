@@ -3,6 +3,8 @@ const adminMiddleware = require('../../middlewares/admin.middleware');
 const upload = require('../../middlewares/upload.middleware');
 const uploadHandler = require('../../middlewares/uploadHandler');
 const ctrl = require('../../controllers/admin/banniere.controller');
+const validate = require('../../middlewares/validate.middleware');
+const { reordonnerBannieresSchema } = require('../../validations/banniere.validation');
 
 router.use(adminMiddleware);
 
@@ -11,7 +13,7 @@ router.post('/', uploadHandler.singleFile(upload.single('image'), 5), ctrl.creat
 router.put('/:id', uploadHandler.singleFile(upload.single('image'), 5), ctrl.update);
 router.delete('/:id', ctrl.remove);
 router.patch('/:id/toggle', ctrl.toggleActive);
-router.post('/reordonner', ctrl.reordonner);
+router.post('/reordonner', validate(reordonnerBannieresSchema), ctrl.reordonner);
 router.post('/:id/produits', ctrl.ajouterProduit);
 router.delete('/:id/produits/:produitId', ctrl.retirerProduit);
 

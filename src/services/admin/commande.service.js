@@ -2,36 +2,16 @@
 // services/admin/commande.service.js
 // ─────────────────────────────────────────────────────────────
 const { Op } = require('sequelize');
-const {
-  Commande,
-  CommandeItem,
-  Produit,
-  User,
-  Adresse,
-  Paiement,
-  sequelize,
-  Panier,
-  FraisLivraison,
-} = require('../../models');
+const { Commande, CommandeItem, Produit, User, Adresse, Paiement } = require('../../models');
 const paginate = require('../../utils/paginate');
-const { sendCommandeStatut, sendCommandeConfirmation } = require('../../utils/mailer');
+const { sendCommandeStatut } = require('../../utils/mailer');
 const { toCsv } = require('../../utils/csv');
-const { sousTotal: calcSousTotal, round2 } = require('../../utils/money');
-const { FRAIS_LIVRAISON_DEFAUT } = require('../../constants');
-const { acquire, release } = require('../../utils/advisoryLock');
-const NotificationService = require('../notification');
+const { ROLES, STATUT_COMMANDE } = require('../../constants');
+const CommandeService = require('../client/commande.service');
 
-function _genererReference() {
-  return `CMD-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-}
-
-async function _getFraisLivraison(ville) {
-  if (ville) {
-    const tarif = await FraisLivraison.findOne({ where: { ville, isActive: true } });
-    if (tarif) return Number(tarif.montant);
-  }
-  return FRAIS_LIVRAISON_DEFAUT;
-}
+// La liste n'affiche que ces champs du produit : inutile de charger toute la
+// fiche (description, images…) pour chaque ligne de chaque commande.
+const PRODUIT_LISTE = ['id', 'nom', 'prix', 'reference'];
 
 const TRANSITIONS = {
   validee: 'en_attente',
@@ -41,113 +21,64 @@ const TRANSITIONS = {
 };
 
 class GestionCommandeService {
-  static async creerCommandeAdmin(
-    userId,
-    { adresseId, note, methode, items = [], dateLivraisonSouhaitee = null }
-  ) {
-    const lockKey = await acquire(`commande:${userId}`);
-    try {
-      const adresse = await Adresse.findOne({ where: { id: adresseId, userId } });
-      if (!adresse) return { success: false, message: 'Adresse introuvable' };
-
-      const lignesPanier = await Promise.all(
-        items.map(async (item) => {
-          const produit = await Produit.findByPk(item.produitId);
-          if (!produit) throw new Error(`Produit ${item.produitId} introuvable`);
-          return { produitId: item.produitId, quantite: item.quantite, produit };
-        })
-      );
-
-      if (!lignesPanier.length)
-        return { success: false, message: 'Sélectionnez au moins un article' };
-
-      const fraisLivraison = await _getFraisLivraison(adresse.ville);
-
-      const t = await sequelize.transaction();
-      try {
-        const lignesTotal = round2(
-          lignesPanier.reduce(
-            (sum, l) => sum + Math.round(Number(l.produit.prix) * 100) * l.quantite,
-            0
-          ) / 100
-        );
-
-        const commande = await Commande.create(
-          {
-            reference: _genererReference(),
-            userId,
-            adresseId,
-            montantTotal: round2(lignesTotal + fraisLivraison),
-            fraisLivraison,
-            note,
-            statut: 'validee',
-            dateLivraisonSouhaitee,
-          },
-          { transaction: t }
-        );
-
-        const commandeItems = [];
-        for (const ligne of lignesPanier) {
-          const quantite = Number(ligne.quantite);
-          const [nbLignesAffectees] = await Produit.update(
-            { stock: sequelize.literal(`stock - ${quantite}`) },
-            { where: { id: ligne.produitId, stock: { [Op.gte]: quantite } }, transaction: t }
-          );
-
-          if (nbLignesAffectees === 0) {
-            await t.rollback();
-            return { success: false, message: `Stock insuffisant pour "${ligne.produit.nom}"` };
-          }
-
-          commandeItems.push({
-            commandeId: commande.id,
-            produitId: ligne.produitId,
-            quantite,
-            prixUnitaire: ligne.produit.prix,
-            sousTotal: calcSousTotal(ligne.produit.prix, quantite),
-          });
-        }
-
-        await CommandeItem.bulkCreate(commandeItems, { transaction: t });
-        await Paiement.create(
-          {
-            commandeId: commande.id,
-            userId,
-            montant: commande.montantTotal,
-            methode,
-            statut: 'succes',
-          },
-          { transaction: t }
-        );
-
-        await t.commit();
-        return { success: true, message: 'Commande créée avec succès', commandeId: commande.id };
-      } catch (err) {
-        await t.rollback();
-        throw err;
-      }
-    } finally {
-      await release(lockKey);
+  /**
+   * Création d'une commande par un administrateur pour le compte d'un client.
+   * Seules les vérifications propres à l'admin sont ici (le client existe, est
+   * un CLIENT actif) ; tout le reste — prix, stock, frais, statut initial,
+   * paiement, transaction — est la logique commune de CommandeService.
+   * Le panier en base du client n'est ni lu ni vidé.
+   */
+  static async creerCommandeAdmin(adminId, { userId, ...donnees }) {
+    const client = await User.findOne({
+      where: { id: userId, role: ROLES.CLIENT },
+      attributes: ['id', 'isActive'],
+    });
+    if (!client) return { success: false, status: 404, message: 'Client introuvable' };
+    if (!client.isActive) {
+      return {
+        success: false,
+        status: 400,
+        message: 'Ce client est désactivé : impossible de lui créer une commande',
+      };
     }
+
+    const result = await CommandeService.creerCommande(userId, donnees, {
+      depuisPanier: false,
+      viderPanier: false,
+      origine: 'admin',
+      auteurId: adminId,
+    });
+    if (result.success) result.message = 'Commande créée avec succès';
+    return result;
   }
 
-  static async getAllCommandes({ page, limit, statut, userId, reference } = {}) {
+  static async getAllCommandes({ page, limit, statut, userId, reference, search } = {}) {
     const { page: p, limit: l, offset } = paginate(page, limit);
 
     const where = {};
     if (statut) where.statut = statut;
     if (userId) where.userId = userId;
     if (reference) where.reference = reference;
+    // Le champ « Rechercher » de l'écran Commandes envoie `search`.
+    if (search && String(search).trim()) {
+      where.reference = { [Op.iLike]: `%${String(search).trim()}%` };
+    }
 
     const { count, rows } = await Commande.findAndCountAll({
       where,
       include: [
         { model: User, as: 'user', attributes: ['id', 'nom', 'prenom', 'email'] },
-        { model: CommandeItem, as: 'items', include: [{ model: Produit, as: 'produit' }] },
+        {
+          model: CommandeItem,
+          as: 'items',
+          include: [{ model: Produit, as: 'produit', attributes: PRODUIT_LISTE }],
+        },
       ],
       order: [['createdAt', 'DESC']],
       limit: l,
       offset,
+      // Sans `distinct`, le total compte les lignes jointes (une par article).
+      distinct: true,
     });
 
     return {
@@ -160,9 +91,14 @@ class GestionCommandeService {
   static async getCommandeById(id) {
     const commande = await Commande.findByPk(id, {
       include: [
-        { model: User, as: 'user' },
+        // Jamais le hash du mot de passe dans une réponse.
+        { model: User, as: 'user', attributes: { exclude: ['password'] } },
         { model: Adresse, as: 'adresse' },
-        { model: CommandeItem, as: 'items', include: [{ model: Produit, as: 'produit' }] },
+        {
+          model: CommandeItem,
+          as: 'items',
+          include: [{ model: Produit, as: 'produit', attributes: { exclude: ['prixAchat'] } }],
+        },
         { model: Paiement, as: 'paiement' },
       ],
     });
@@ -205,42 +141,19 @@ class GestionCommandeService {
     );
   }
 
-  static async rejeterCommande(id, raison) {
-    const commande = await Commande.findByPk(id, {
-      include: [
-        { model: CommandeItem, as: 'items' },
-        { model: User, as: 'user' },
-      ],
-    });
+  /**
+   * Même règle métier que CommandeService.rejeterCommande : seule une commande
+   * en attente peut être rejetée ; elle passe en `rejetee`, le motif va dans
+   * `motifRejet` (affiché au client par le mobile) et le stock est restauré.
+   */
+  static async rejeterCommande(id, motif) {
+    const result = await CommandeService.rejeterCommande(id, { motif });
+    if (!result.success) return result;
 
-    if (!commande) {
-      return { success: false, message: 'Commande introuvable' };
-    }
+    const user = await User.findByPk(result.commande.userId, { attributes: ['email'] });
+    if (user) await sendCommandeStatut(user.email, result.commande, STATUT_COMMANDE.REJETEE);
 
-    if (['livree', 'annulee'].includes(commande.statut)) {
-      return { success: false, message: 'Cette commande ne peut plus être annulée' };
-    }
-
-    const t = await sequelize.transaction();
-    try {
-      for (const item of commande.items) {
-        await Produit.increment('stock', {
-          by: item.quantite,
-          where: { id: item.produitId },
-          transaction: t,
-        });
-      }
-
-      await commande.update({ statut: 'annulee', noteAdmin: raison }, { transaction: t });
-      await t.commit();
-
-      if (commande.user) await sendCommandeStatut(commande.user.email, commande, 'annulee');
-
-      return { success: true, message: 'Commande rejetée avec succès', commande };
-    } catch (err) {
-      await t.rollback();
-      throw err;
-    }
+    return result;
   }
 
   static mettreEnPreparation(id) {
@@ -270,17 +183,18 @@ class GestionCommandeService {
     return { success: true, commandes };
   }
   static async getKpiCommandes() {
-    const [total, enAttente, validees, annulees, livrees, ca] = await Promise.all([
+    const [total, enAttente, validees, annulees, rejetees, livrees, ca] = await Promise.all([
       Commande.count(),
       Commande.count({ where: { statut: 'en_attente' } }),
       Commande.count({ where: { statut: 'validee' } }),
       Commande.count({ where: { statut: 'annulee' } }),
+      Commande.count({ where: { statut: STATUT_COMMANDE.REJETEE } }),
       Commande.count({ where: { statut: 'livree' } }),
       Commande.sum('montantTotal', { where: { statut: 'livree' } }),
     ]);
     return {
       success: true,
-      kpi: { total, enAttente, validees, annulees, livrees, chiffreAffaires: ca || 0 },
+      kpi: { total, enAttente, validees, annulees, rejetees, livrees, chiffreAffaires: ca || 0 },
     };
   }
 

@@ -59,32 +59,3 @@ exports.annuler = asyncHandler(async (req, res) => {
   }
   return ok(res, { commande: result.commande }, result.message);
 });
-
-/**
- * PATCH /api/commandes/:id/valider (admin uniquement)
- * Valider une commande en attente
- */
-exports.valider = asyncHandler(async (req, res) => {
-  const result = await CommandeService.validerCommande(req.params.id);
-  if (!result.success) {
-    const statusCode = result.status || 400;
-    if (statusCode === 404) throw new NotFoundError(result.message);
-    throw new BadRequestError(result.message);
-  }
-  return ok(res, { commande: result.commande }, result.message);
-});
-
-/**
- * PATCH /api/commandes/:id/rejeter (admin uniquement)
- * Rejeter une commande en attente avec motif
- */
-exports.rejeter = asyncHandler(async (req, res) => {
-  const { motif } = req.body;
-  const result = await CommandeService.rejeterCommande(req.params.id, { motif });
-  if (!result.success) {
-    const statusCode = result.status || 400;
-    if (statusCode === 404) throw new NotFoundError(result.message);
-    throw new BadRequestError(result.message);
-  }
-  return ok(res, { commande: result.commande }, result.message);
-});

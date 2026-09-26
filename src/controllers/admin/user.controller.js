@@ -118,3 +118,35 @@ exports.desactiverClient = asyncHandler(async (req, res) => {
   if (!result.success) throw new NotFoundError(result.message);
   return ok(res, { client: formatUser(result.user) }, result.message);
 });
+
+// ── Adresses d'un client (création de commande depuis le dashboard) ─────────
+// Même service que le profil mobile : mêmes règles (5 adresses max, adresse
+// par défaut unique). L'admin agit pour le compte d'un client existant.
+const ProfilService = require('../../services/client/profil.service');
+
+const _clientOu404 = async (id) => {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    throw new NotFoundError('Client introuvable');
+  }
+  const result = await GestionUserService.getClientById(id);
+  if (!result.success) throw new NotFoundError(result.message);
+  return result.user;
+};
+
+exports.adressesClient = asyncHandler(async (req, res) => {
+  await _clientOu404(req.params.id);
+  const result = await ProfilService.getAdresses(req.params.id);
+  return ok(res, { adresses: result.adresses }, 'Adresses récupérées');
+});
+
+exports.ajouterAdresseClient = asyncHandler(async (req, res) => {
+  await _clientOu404(req.params.id);
+  const result = await ProfilService.ajouterAdresse(req.params.id, req.body);
+  if (!result.success) throw new BadRequestError(result.message);
+  return created(res, { adresse: result.adresse }, result.message);
+});
+
+exports.getClient = asyncHandler(async (req, res) => {
+  const user = await _clientOu404(req.params.id);
+  return ok(res, { user: { ...formatUser(user), createdAt: user.createdAt } }, 'Client');
+});

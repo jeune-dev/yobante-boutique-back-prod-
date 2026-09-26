@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────
 const GestionCommandeService = require('../../services/admin/commande.service');
 const asyncHandler = require('../../utils/asyncHandler');
-const { ok } = require('../../utils/response');
+const { ok, created } = require('../../utils/response');
 const { BadRequestError, NotFoundError } = require('../../errors/AppError');
 
 exports.getAll = asyncHandler(async (req, res) => {
@@ -35,8 +35,12 @@ exports.valider = asyncHandler(async (req, res) => {
 });
 
 exports.rejeter = asyncHandler(async (req, res) => {
-  const result = await GestionCommandeService.rejeterCommande(req.params.id, req.body.raison);
-  if (!result.success) throw new BadRequestError(result.message);
+  const motif = req.body.motif ?? req.body.raison;
+  const result = await GestionCommandeService.rejeterCommande(req.params.id, motif);
+  if (!result.success) {
+    if (result.status === 404) throw new NotFoundError(result.message);
+    throw new BadRequestError(result.message);
+  }
   return ok(res, { commande: result.commande }, result.message);
 });
 
@@ -62,18 +66,23 @@ exports.getKpi = asyncHandler(async (req, res) => {
   const result = await GestionCommandeService.getKpiCommandes();
   return ok(res, result.kpi, 'KPI commandes');
 });
+/**
+ * POST /api/v1/admin/commandes
+ * Création d'une commande par un administrateur pour le compte d'un client.
+ */
 exports.creer = asyncHandler(async (req, res) => {
-  const GestionCommandeService = require('../../services/admin/commande.service');
-  const { ok } = require('../../utils/response');
-  const { BadRequestError } = require('../../errors/AppError');
   const { userId, adresseId, note, methode, items, dateLivraisonSouhaitee } = req.body;
-  const result = await GestionCommandeService.creerCommandeAdmin(userId, {
+  const result = await GestionCommandeService.creerCommandeAdmin(req.user.id, {
+    userId,
     adresseId,
     note,
     methode,
     items,
-    dateLivraisonSouhaitee,
+    dateLivraisonSouhaitee: dateLivraisonSouhaitee || null,
   });
-  if (!result.success) throw new BadRequestError(result.message);
-  return ok(res, { commandeId: result.commandeId }, result.message);
+  if (!result.success) {
+    if (result.status === 404) throw new NotFoundError(result.message);
+    throw new BadRequestError(result.message);
+  }
+  return created(res, { commande: result.commande }, result.message);
 });

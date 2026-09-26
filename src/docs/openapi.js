@@ -145,12 +145,13 @@ const Commande = {
     adresseId: { type: 'string', format: 'uuid' },
     statut: {
       type: 'string',
-      enum: ['en_attente', 'validee', 'en_preparation', 'expediee', 'livree', 'annulee'],
+      enum: ['en_attente', 'validee', 'en_preparation', 'expediee', 'livree', 'annulee', 'rejetee'],
     },
     montantTotal: { type: 'number' },
     fraisLivraison: { type: 'number' },
     note: { type: 'string', nullable: true },
     noteAdmin: { type: 'string', nullable: true },
+    motifRejet: { type: 'string', nullable: true },
     items: { type: 'array', items: CommandeItem },
   },
 };
@@ -1479,13 +1480,16 @@ module.exports = {
     '/admin/commandes/{id}/rejeter': {
       patch: {
         tags: ['Admin - Commandes'],
-        summary: 'Rejeter/annuler une commande (remet le stock)',
+        summary: 'Rejeter une commande en attente (statut rejetee, remet le stock)',
         security: bearerAuth,
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
         requestBody: jsonBody({
           type: 'object',
-          required: ['raison'],
-          properties: { raison: { type: 'string' } },
+          description: '`motif` requis (`raison` accepté comme alias), enregistré dans motifRejet',
+          properties: {
+            motif: { type: 'string', maxLength: 500 },
+            raison: { type: 'string', maxLength: 500, deprecated: true },
+          },
         }),
         responses: {
           200: okJson('Rejetée', {

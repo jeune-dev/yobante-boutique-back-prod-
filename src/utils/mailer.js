@@ -55,6 +55,7 @@ function sendCommandeStatut(to, commande, statut) {
     expediee: 'expédiée',
     livree: 'livrée',
     annulee: 'annulée',
+    rejetee: 'rejetée',
   };
   return sendMail({
     to,

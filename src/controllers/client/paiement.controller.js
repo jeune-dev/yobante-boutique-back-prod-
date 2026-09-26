@@ -46,7 +46,11 @@ exports.statut = asyncHandler(async (req, res) => {
  * la signature vérifiée dans le service.
  */
 exports.callback = asyncHandler(async (req, res) => {
-  const { reference, succes } = req.body;
+  const { reference, succes } = req.body || {};
+  // Sans référence, aucun paiement ne peut être rapproché : requête invalide.
+  if (typeof reference !== 'string' || !reference.trim()) {
+    throw new BadRequestError('Référence de paiement manquante');
+  }
   const donnees = {
     reference,
     succes: succes === true || succes === 'true',
