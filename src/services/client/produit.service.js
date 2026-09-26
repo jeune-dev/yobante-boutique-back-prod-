@@ -1,6 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // services/client/produit.service.js
 // ─────────────────────────────────────────────────────────────
+const { STATUT_VALIDATION_PRODUIT } = require('../../constants');
 const { Op } = require('sequelize');
 const { Produit, Categorie, Avis, User, ProfilVendeur } = require('../../models');
 const paginate = require('../../utils/paginate');
@@ -17,6 +18,14 @@ const CATALOGUE_INCLUDE = [
   },
 ];
 
+// Un produit n'est visible des acheteurs qu'actif ET entièrement validé —
+// règle déjà appliquée par les rayons et les promotions. `isActive` seul ne
+// suffisait pas : il passe à vrai dès l'étape 1 de validation.
+const VISIBLE_AU_PUBLIC = Object.freeze({
+  isActive: true,
+  statutValidation: STATUT_VALIDATION_PRODUIT.VALIDE,
+});
+
 class ProduitService {
   static async getProduits({
     page,
@@ -30,7 +39,7 @@ class ProduitService {
   } = {}) {
     const { page: p, limit: l, offset } = paginate(page, limit);
 
-    const where = { isActive: true };
+    const where = { ...VISIBLE_AU_PUBLIC };
     if (categorieId) where.categorieId = categorieId;
     // Produits d'une boutique : `vendeurId` est l'identifiant utilisateur du
     // vendeur (`boutique.vendeur.id` côté mobile).
@@ -71,7 +80,7 @@ class ProduitService {
 
   static async getProduitBySlug(slug) {
     const produit = await Produit.findOne({
-      where: { slug, isActive: true },
+      where: { slug, ...VISIBLE_AU_PUBLIC },
       attributes: { exclude: ['prixAchat'] },
       include: [
         { model: Categorie, as: 'categorie' },
@@ -99,7 +108,7 @@ class ProduitService {
 
   static async getProduitsFeatured() {
     const produits = await Produit.findAll({
-      where: { isFeatured: true, isActive: true },
+      where: { isFeatured: true, ...VISIBLE_AU_PUBLIC },
       attributes: { exclude: ['prixAchat'] },
       include: CATALOGUE_INCLUDE,
       limit: 10,
@@ -118,7 +127,7 @@ class ProduitService {
     const { page: p, limit: l, offset } = paginate(page, limit);
 
     const { count, rows } = await Produit.findAndCountAll({
-      where: { categorieId: categorie.id, isActive: true },
+      where: { categorieId: categorie.id, ...VISIBLE_AU_PUBLIC },
       order: [['createdAt', 'DESC']],
       limit: l,
       offset,
@@ -137,7 +146,7 @@ class ProduitService {
 
     const { count, rows } = await Produit.findAndCountAll({
       where: {
-        isActive: true,
+        ...VISIBLE_AU_PUBLIC,
         [Op.or]: [
           { nom: { [Op.iLike]: `%${query}%` } },
           { description: { [Op.iLike]: `%${query}%` } },
@@ -165,7 +174,7 @@ class ProduitService {
     const produits = await Produit.findAll({
       where: {
         categorieId: produit.categorieId,
-        isActive: true,
+        ...VISIBLE_AU_PUBLIC,
         id: { [Op.ne]: produitId },
       },
       limit,

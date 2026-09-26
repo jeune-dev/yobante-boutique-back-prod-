@@ -51,7 +51,6 @@
               "description": "description-exemple",
               "prix": "1500.00",
               "prixPromo": null,
-              "prixAchat": "10.00",
               "stock": 12,
               "stockAlloue": 20,
               "infoLegale": "infoLegale-exemple",

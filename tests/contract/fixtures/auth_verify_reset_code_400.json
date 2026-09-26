@@ -1,0 +1,17 @@
+{
+  "requete": {
+    "methode": "POST",
+    "chemin": "/auth/verify-reset-code",
+    "query": {},
+    "corps": {
+      "email": "fatou@exemple.com",
+      "code": "000000"
+    },
+    "champs": null
+  },
+  "reponse": {
+    "success": false,
+    "message": "Code incorrect ou expiré.",
+    "data": null
+  }
+}

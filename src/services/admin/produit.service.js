@@ -119,7 +119,7 @@ class GestionProduitService {
   }
 
   static async getProduitById(id) {
-    const produit = await Produit.findByPk(id, {
+    const produit = await Produit.scope('administration').findByPk(id, {
       include: [
         { model: Rayon, as: 'rayon', attributes: ['id', 'nom'], required: false },
         { model: SousRayon, as: 'sousRayon', attributes: ['id', 'nom'], required: false },
@@ -181,7 +181,7 @@ class GestionProduitService {
       ];
     }
 
-    const { count, rows } = await Produit.findAndCountAll({
+    const { count, rows } = await Produit.scope('administration').findAndCountAll({
       where,
       include: [
         { model: Rayon, as: 'rayon', attributes: ['id', 'nom'], required: false },

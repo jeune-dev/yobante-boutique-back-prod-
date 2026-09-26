@@ -98,7 +98,8 @@ const SURCHARGES = {
   Signalement: { id: ID.signalement, userId: ID.client, type: 'boutique', cibleId: ID.vendeur, raison: 'Produit non conforme', description: 'La commande ne correspond pas', statut: 'en_attente', reponseAdmin: null },
   Abonnement: { id: ID.abonnement, vendeurId: ID.vendeur, type: 'mensuel', montant: '5000.00', dateDebut: DATE, dateFin: '2026-10-20T10:00:00.000Z', statut: 'actif' },
   PaiementAbonnement: { id: ID.paiementAbonnement, vendeurId: ID.vendeur, abonnementId: ID.abonnement, montant: '5000.00', methode: 'wave', numeroTelephone: '+221765556677', statut: 'succes', transactionId: 'WAV-ABO-TEST', urlPaiement: 'https://pay.exemple/WAV-ABO-TEST', payeAt: DATE, derniereErreur: null },
-  UserOtp: { userId: ID.client, code: bcrypt.hashSync('ABCD1234', 4), type: 'reset_password', isUsed: false, expiresAt: '2027-01-01T00:00:00.000Z' },
+  // Code à 6 chiffres, comme ceux envoyés par email (Joi : 6 caractères).
+  UserOtp: { userId: ID.client, code: bcrypt.hashSync('123456', 4), type: 'reset_password', isUsed: false, expiresAt: '2027-01-01T00:00:00.000Z' },
 };
 
 /** Valeur d'exemple pour un attribut Sequelize, typée comme le renverrait PostgreSQL. */
@@ -123,7 +124,10 @@ function valeurPour(attr, nom) {
 
 const VENDEUR = { id: ID.vendeur, nom: 'Ndiaye', prenom: 'Moussa', email: 'moussa@exemple.com', role: 'VENDEUR', telephone: '+221765556677' };
 
-function donnees(Model, surcharges = {}, attributes) {
+function donnees(Model, surcharges = {}, attributesDemandes) {
+  // Sans `attributes` explicites, Sequelize applique le `defaultScope` du
+  // modèle (ex. Produit : prix d'achat exclu) — la doublure fait de même.
+  const attributes = attributesDemandes ?? Model.options.defaultScope?.attributes;
   let d = {};
   for (const [nom, attr] of Object.entries(Model.rawAttributes)) d[nom] = valeurPour(attr, nom);
   d = { ...d, ...(SURCHARGES[Model.name] || {}), ...surcharges };
@@ -134,6 +138,12 @@ function donnees(Model, surcharges = {}, attributes) {
   if (Array.isArray(attributes)) {
     const garde = new Set([...attributes.map((a) => (Array.isArray(a) ? a[1] : a))]);
     d = Object.fromEntries(Object.entries(d).filter(([k]) => garde.has(k)));
+  } else if (attributes && Array.isArray(attributes.exclude)) {
+    // `{ exclude: [...] }` : ce que la prod ne renvoie JAMAIS (ex. `prixAchat`
+    // au client). Ignoré, la fixture affichait un champ que le mobile ne
+    // reçoit pas — et masquait une éventuelle fuite.
+    const retire = new Set(attributes.exclude);
+    d = Object.fromEntries(Object.entries(d).filter(([k]) => !retire.has(k)));
   }
   return d;
 }
@@ -149,8 +159,8 @@ function inclus(Parent, assoc, attributes) {
 }
 
 /** Construit une instance réelle avec les `include` demandés par le service. */
-function instance(Model, includes, surcharges) {
-  const d = donnees(Model, surcharges);
+function instance(Model, includes, surcharges, attributes) {
+  const d = donnees(Model, surcharges, attributes);
   const specs = [];
   for (const inc of normaliser(includes)) {
     const assoc = (typeof inc.association === 'string' ? Model.associations[inc.association] : inc.association)
@@ -196,10 +206,10 @@ function neutraliser(inst) {
 function doubler() {
   for (const Model of Object.values(models)) {
     if (!Model || !Model.rawAttributes) continue;
-    jest.spyOn(Model, 'findAll').mockImplementation(async (o = {}) => [instance(Model, o.include)]);
-    jest.spyOn(Model, 'findOne').mockImplementation(async (o = {}) => instance(Model, o.include));
-    jest.spyOn(Model, 'findByPk').mockImplementation(async (id, o = {}) => instance(Model, o.include, { id }));
-    jest.spyOn(Model, 'findAndCountAll').mockImplementation(async (o = {}) => ({ rows: [instance(Model, o.include)], count: 1 }));
+    jest.spyOn(Model, 'findAll').mockImplementation(async (o = {}) => [instance(Model, o.include, undefined, o.attributes)]);
+    jest.spyOn(Model, 'findOne').mockImplementation(async (o = {}) => instance(Model, o.include, undefined, o.attributes));
+    jest.spyOn(Model, 'findByPk').mockImplementation(async (id, o = {}) => instance(Model, o.include, { id }, o.attributes));
+    jest.spyOn(Model, 'findAndCountAll').mockImplementation(async (o = {}) => ({ rows: [instance(Model, o.include, undefined, o.attributes)], count: 1 }));
     jest.spyOn(Model, 'count').mockImplementation(async () => 1);
     jest.spyOn(Model, 'sum').mockImplementation(async () => 0);
     jest.spyOn(Model, 'max').mockImplementation(async () => 0);
@@ -241,8 +251,10 @@ function contrat(nom, res, { status = 200, cles = [], erreursChamps = false, cha
     expect(Array.isArray(res.body.data)).toBe(false);
     expect(typeof res.body.data).toBe('object');
     for (const cle of cles) expect(res.body.data).toHaveProperty(cle);
-    // Rien ne fuit : ni mot de passe, ni jeton hors login.
+    // Rien ne fuit : ni mot de passe, ni jeton hors login, ni prix d'achat
+    // (réservé à l'administration ; aucune de ces routes n'en relève).
     expect(JSON.stringify(res.body)).not.toMatch(/"password"|\$2a\$/);
+    expect(JSON.stringify(res.body)).not.toMatch(/"prixAchat"/);
   } else if (erreursChamps) {
     // Seule exception documentée : la validation (400) détaille les champs
     // fautifs dans `data.errors` pour l'affichage formulaire côté mobile.
@@ -264,6 +276,21 @@ function contrat(nom, res, { status = 200, cles = [], erreursChamps = false, cha
   fs.writeFileSync(path.join(FIXTURES, `${nom}.json`), JSON.stringify({ requete, reponse: res.body }, null, 2));
   return res.body.data;
 }
+
+// Horloge figée (Date seulement : les vrais minuteurs continuent de tourner).
+// Sans cela, jetons et slugs dépendaient de l'heure d'exécution : chaque
+// passage réécrivait une vingtaine de fixtures, et la copie mobile dérivait
+// sans que personne ne le voie.
+beforeAll(() => {
+  jest.useFakeTimers({
+    now: new Date(DATE),
+    doNotFake: [
+      'hrtime', 'nextTick', 'performance', 'queueMicrotask', 'setImmediate', 'clearImmediate',
+      'setInterval', 'clearInterval', 'setTimeout', 'clearTimeout',
+    ],
+  });
+});
+afterAll(() => jest.useRealTimers());
 
 beforeEach(() => {
   cache.clear();
@@ -313,6 +340,20 @@ describe('Contrat API mobile ↔ backend', () => {
   it('POST /auth/forgot-password', async () => {
     const res = await request(app).post('/api/v1/auth/forgot-password').send({ email: 'fatou@exemple.com' });
     contrat('auth_forgot_password', res);
+  });
+
+  it('POST /auth/verify-reset-code { email, code } → resetToken', async () => {
+    // Jeton aléatoire figé : la fixture doit rester stable d'une exécution à l'autre.
+    jest.spyOn(require('crypto'), 'randomBytes').mockReturnValueOnce(Buffer.alloc(32, 7));
+    const res = await request(app).post('/api/v1/auth/verify-reset-code').send({ email: 'fatou@exemple.com', code: '123456' });
+    const d = contrat('auth_verify_reset_code', res, { cles: ['resetToken'] });
+    expect(d.resetToken).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('POST /auth/verify-reset-code → 400 code incorrect (message générique)', async () => {
+    const res = await request(app).post('/api/v1/auth/verify-reset-code').send({ email: 'fatou@exemple.com', code: '000000' });
+    contrat('auth_verify_reset_code_400', res, { status: 400 });
+    expect(res.body.message).toBe('Code incorrect ou expiré.');
   });
 
   it('POST /auth/reset-password', async () => {
@@ -451,7 +492,7 @@ describe('Contrat API mobile ↔ backend', () => {
     expect(d.commande).toMatchObject({ id: expect.any(String), reference: expect.any(String), statut: expect.any(String), montantTotal: expect.anything(), note: 'Sonner deux fois', dateLivraisonSouhaitee: '2026-10-01' });
   });
   it('GET /commandes?statut=', async () => {
-    const d = contrat('commandes_liste', await request(app).get('/api/v1/commandes').set(auth()).query({ statut: 'en_attente' }), { cles: ['commandes', 'pagination'] });
+    const d = contrat('commandes_liste', await request(app).get('/api/v1/commandes').set(auth()).query({ limit: 100, statut: 'en_attente' }), { cles: ['commandes', 'pagination'] });
     expect(d.commandes[0]).toMatchObject({ id: expect.any(String), reference: expect.any(String), items: expect.any(Array) });
   });
   it('GET /commandes/:id', async () => {
@@ -544,7 +585,7 @@ describe('Contrat API mobile ↔ backend', () => {
 
   // ── Notifications ────────────────────────────────────────────
   it('GET /notifications', async () => {
-    const d = contrat('notifications_liste', await request(app).get('/api/v1/notifications').set(auth()), { cles: ['notifications', 'pagination'] });
+    const d = contrat('notifications_liste', await request(app).get('/api/v1/notifications').set(auth()).query({ limit: 100 }), { cles: ['notifications', 'pagination'] });
     expect(d.notifications[0]).toMatchObject({ id: expect.any(String), titre: expect.any(String) });
   });
   it('GET /notifications/non-lues', async () => {
@@ -566,7 +607,7 @@ describe('Contrat API mobile ↔ backend', () => {
 
   // ── Vendeur ──────────────────────────────────────────────────
   it('GET /vendeur/produits?statut=', async () => {
-    const d = contrat('vendeur_produits', await request(app).get('/api/v1/vendeur/produits').set(auth('VENDEUR')).query({ statut: 'en_attente' }), { cles: ['produits', 'pagination'] });
+    const d = contrat('vendeur_produits', await request(app).get('/api/v1/vendeur/produits').set(auth('VENDEUR')).query({ limit: 100, statut: 'en_attente' }), { cles: ['produits', 'pagination'] });
     expect(d).not.toHaveProperty('success');
   });
   it('POST /vendeur/produits (multipart : nom, description, prix, stockAlloue, messageVendeur, images[])', async () => {
@@ -590,7 +631,7 @@ describe('Contrat API mobile ↔ backend', () => {
     contrat('vendeur_produits_stats', await request(app).get('/api/v1/vendeur/produits/stats').set(auth('VENDEUR')), { cles: ['stats'] });
   });
   it('GET /vendeur/commandes?statut=', async () => {
-    const d = contrat('vendeur_commandes', await request(app).get('/api/v1/vendeur/commandes').set(auth('VENDEUR')).query({ statut: 'en_attente' }), { cles: ['commandes', 'pagination'] });
+    const d = contrat('vendeur_commandes', await request(app).get('/api/v1/vendeur/commandes').set(auth('VENDEUR')).query({ limit: 100, statut: 'en_attente' }), { cles: ['commandes', 'pagination'] });
     expect(d).not.toHaveProperty('success');
   });
   it('GET /vendeur/commandes/ventes?jours=', async () => {
@@ -663,7 +704,7 @@ describe('Contrat API mobile ↔ backend', () => {
     contrat('erreur_400_validation', await request(app).post('/api/v1/avis').set(auth()).send({ note: 9, commentaire: '', produitId: '' }), { status: 400, erreursChamps: true });
   });
   it('rôle insuffisant → 403 avec l’enveloppe', async () => {
-    contrat('erreur_403', await request(app).get('/api/v1/vendeur/produits').set(auth('CLIENT')), { status: 403 });
+    contrat('erreur_403', await request(app).get('/api/v1/vendeur/produits').set(auth('CLIENT')).query({ limit: 100 }), { status: 403 });
   });
   it('route inconnue → 404 avec l’enveloppe', async () => {
     contrat('erreur_404', await request(app).get('/api/v1/inexistant'), { status: 404 });

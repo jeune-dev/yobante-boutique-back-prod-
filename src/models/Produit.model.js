@@ -132,6 +132,13 @@ const Produit = sequelize.define(
   {
     timestamps: true,
     tableName: 'produits',
+    // Le prix d'achat n'est jamais lu, sauf demande explicite : il ne peut
+    // plus fuiter par une requête ou un `include` qui oublie de l'exclure
+    // (il était renvoyé à tous, sans authentification, par les promotions,
+    // les rayons, la recherche…). Écrit normalement ; lecture réservée à
+    // l'administration via `Produit.scope('administration')`.
+    defaultScope: { attributes: { exclude: ['prixAchat'] } },
+    scopes: { administration: {} },
     indexes: [
       { fields: ['categorieId'] },
       { fields: ['vendeurId'] },

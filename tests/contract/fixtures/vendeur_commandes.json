@@ -3,6 +3,7 @@
     "methode": "GET",
     "chemin": "/vendeur/commandes",
     "query": {
+      "limit": "100",
       "statut": "en_attente"
     },
     "corps": null,
@@ -64,7 +65,7 @@
         "total": 1,
         "totalPages": 1,
         "page": 1,
-        "limit": 20
+        "limit": 100
       }
     }
   }

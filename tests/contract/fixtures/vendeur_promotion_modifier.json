@@ -20,7 +20,7 @@
         "id": "c0000000-0000-4000-8000-000000000001",
         "produitId": "20000000-0000-4000-8000-000000000001",
         "blocPromoId": "70000000-0000-4000-8000-000000000001",
-        "section": "nos_promos_du_moment",
+        "section": "nos_promos_a_venir",
         "titre": "Promo huile bio",
         "description": "Prolongee",
         "prixPromo": 1100,
@@ -36,7 +36,7 @@
           "nom": "Huile de palme",
           "slug": "huile-de-palme",
           "prix": "1500.00",
-          "prixPromo": 1100,
+          "prixPromo": null,
           "stock": 12,
           "vendeurId": "10000000-0000-4000-8000-000000000002",
           "images": [

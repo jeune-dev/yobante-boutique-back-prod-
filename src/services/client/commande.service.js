@@ -10,7 +10,11 @@ const {
   User,
   sequelize,
 } = require('../../models');
-const { FRAIS_LIVRAISON_DEFAUT, STATUT_COMMANDE } = require('../../constants');
+const {
+  FRAIS_LIVRAISON_DEFAUT,
+  STATUT_COMMANDE,
+  STATUT_VALIDATION_PRODUIT,
+} = require('../../constants');
 const { sousTotal: calcSousTotal, round2 } = require('../../utils/money');
 const paginate = require('../../utils/paginate');
 const { sendCommandeConfirmation } = require('../../utils/mailer');
@@ -79,7 +83,7 @@ class CommandeService {
       const quantites = _regrouperItems(items);
       const produits = await Produit.findAll({
         where: { id: [...quantites.keys()] },
-        attributes: ['id', 'nom', 'prix', 'stock', 'isActive', 'vendeurId'],
+        attributes: ['id', 'nom', 'prix', 'stock', 'isActive', 'statutValidation', 'vendeurId'],
       });
       const parId = new Map(produits.map((p) => [p.id, p]));
       for (const produitId of quantites.keys()) {
@@ -108,7 +112,12 @@ class CommandeService {
       };
 
     for (const ligne of lignesPanier) {
-      if (!ligne.produit.isActive) {
+      // Même règle que le catalogue : actif ET entièrement validé (un produit
+      // devient actif dès l'étape 1 de validation, avant d'être publié).
+      if (
+        !ligne.produit.isActive ||
+        ligne.produit.statutValidation !== STATUT_VALIDATION_PRODUIT.VALIDE
+      ) {
         return {
           success: false,
           status: 400,
@@ -240,11 +249,15 @@ class CommandeService {
     return CommandeService.creerCommande(userId, data);
   }
 
-  static async getMesCommandes(userId, { page, limit } = {}) {
+  static async getMesCommandes(userId, { page, limit, statut } = {}) {
     const { page: p, limit: l, offset } = paginate(page, limit);
+    // `?statut=` est envoyé par le mobile (filtre de l'écran Mes commandes) ;
+    // il était ignoré. Une valeur hors énumération ne filtre rien.
+    const where = { userId };
+    if (Object.values(STATUT_COMMANDE).includes(statut)) where.statut = statut;
 
     const { count, rows } = await Commande.findAndCountAll({
-      where: { userId },
+      where,
       include: [
         {
           model: CommandeItem,

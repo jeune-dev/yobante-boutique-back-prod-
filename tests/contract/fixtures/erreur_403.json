@@ -2,7 +2,9 @@
   "requete": {
     "methode": "GET",
     "chemin": "/vendeur/produits",
-    "query": {},
+    "query": {
+      "limit": "100"
+    },
     "corps": null,
     "champs": null
   },

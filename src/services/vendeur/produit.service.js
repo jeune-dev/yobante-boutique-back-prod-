@@ -50,6 +50,9 @@ class VendeurProduitService {
 
     // createWithUniqueSlug gère la race condition de slug en cas de collision
     const produit = await createWithUniqueSlug(Produit, payload, data.nom);
+    // L'instance issue de `create` porte toutes les colonnes : le prix
+    // d'achat (réservé à l'administration) n'est pas renvoyé au vendeur.
+    delete produit.dataValues.prixAchat;
     return { success: true, message: 'Produit soumis pour validation', produit };
   }
 

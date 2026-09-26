@@ -20,11 +20,10 @@
       "produit": {
         "id": "20000000-0000-4000-8000-000000000001",
         "nom": "Huile",
-        "slug": "huile-1790381303842",
+        "slug": "huile-1789898400000",
         "description": "Bio",
         "prix": "1500",
         "prixPromo": null,
-        "prixAchat": "10.00",
         "stock": 12,
         "stockAlloue": "20",
         "infoLegale": "infoLegale-exemple",
