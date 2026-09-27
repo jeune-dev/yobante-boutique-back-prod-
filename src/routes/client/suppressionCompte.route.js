@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────
 // routes/client/suppressionCompte.route.js — Préfixe : /api/v1/suppression-compte
-// Route publique (sans authentification) — formulaire admin.yobanterek.com/suppression-compte
+// Route publique (sans authentification) — formulaire admin.yobante-boutique.com/suppression-compte
 // ─────────────────────────────────────────────────────────────
 const router = require('express').Router();
 const ctrl = require('../../controllers/client/suppressionCompte.controller');

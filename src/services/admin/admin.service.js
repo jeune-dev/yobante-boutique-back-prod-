@@ -23,7 +23,7 @@ const STATUT = STATUT_VENDEUR;
 
 // Lien vers le dashboard d'administration — distinct de FRONTEND_URL, qui
 // pointe vers l'espace des vendeurs.
-const lienConnexion = () => process.env.ADMIN_URL || 'https://admin.yobanterek.com';
+const lienConnexion = () => process.env.ADMIN_URL || 'https://admin.yobante-boutique.com';
 
 /** Purge le cache d'authentification : le changement est vu à la requête suivante. */
 const invaliderCacheAuth = (userId) => {

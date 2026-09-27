@@ -2,7 +2,7 @@ const { DataTypes } = require('sequelize');
 const sequelize = require('../config/db');
 
 // Demande de suppression de compte soumise via le formulaire public
-// admin.yobanterek.com/suppression-compte (exigence Google Play).
+// admin.yobante-boutique.com/suppression-compte (exigence Google Play).
 // Traitement manuel par un admin — pas de suppression automatique du compte.
 const DemandeSuppressionCompte = sequelize.define(
   'DemandeSuppressionCompte',

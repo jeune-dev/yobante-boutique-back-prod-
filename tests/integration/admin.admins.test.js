@@ -116,7 +116,7 @@ describe('POST /admin/users/admins — création', () => {
     const mail = sendEmail.mock.calls[0][0];
     expect(mail.to).toBe('awa@yobante.sn');
     expect(mail.html).toContain('administrateur');
-    expect(mail.html).toContain('https://admin.yobanterek.com');
+    expect(mail.html).toContain('https://admin.yobante-boutique.com');
 
     expect(res.body.data.emailEnvoye).toBe(true);
     expect(res.body.data.admin.mustChangePassword).toBe(true);
