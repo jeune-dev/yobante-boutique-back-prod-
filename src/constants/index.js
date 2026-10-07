@@ -80,6 +80,69 @@ const UPLOAD = Object.freeze({
   },
 });
 
+// ── Niveaux d'alerte de stock ──────────────────────────────────
+// Quatre paliers demandés par la boutique : vert / orange / rouge / noir.
+// Les seuils sont réglables sans redéploiement (un primeur et un vendeur
+// d'électroménager n'ont pas la même notion de « stock faible »).
+const NIVEAU_STOCK = Object.freeze({
+  NORMAL: 'normal',
+  FAIBLE: 'faible',
+  RUPTURE_IMMINENTE: 'rupture_imminente',
+  RUPTURE: 'rupture',
+});
+
+const SEUILS_STOCK = Object.freeze({
+  RUPTURE_IMMINENTE: Number(process.env.SEUIL_RUPTURE_IMMINENTE) || 2,
+  FAIBLE: Number(process.env.SEUIL_STOCK_FAIBLE) || 5,
+});
+
+// Nombre de jours de ventes servant à calculer la couverture de stock.
+const FENETRE_COUVERTURE_JOURS = Number(process.env.FENETRE_COUVERTURE_JOURS) || 30;
+
+// Qui est à l'origine d'une modification ou d'une annulation de commande.
+const ORIGINE_ACTION = Object.freeze({
+  CLIENT: 'client',
+  ADMIN: 'admin',
+  VENDEUR: 'vendeur',
+});
+
+// À qui l'incident est imputable. Sert au suivi de fiabilité des vendeurs :
+// une annulation « responsabilité vendeur » (stock annoncé à tort, par
+// exemple) pèse sur son score, pas un changement d'avis du client.
+const RESPONSABILITE = Object.freeze({
+  VENDEUR: 'vendeur',
+  CLIENT: 'client',
+  TRANSPORT: 'transport',
+  AUTRE: 'autre',
+});
+
+const MOTIF_RETOUR = Object.freeze({
+  PRODUIT_ABIME: 'produit_abime',
+  NON_CONFORME: 'non_conforme',
+  ERREUR_ARTICLE: 'erreur_article',
+  STOCK_INEXISTANT: 'stock_inexistant',
+  RETARD_LIVRAISON: 'retard_livraison',
+  CHANGEMENT_AVIS: 'changement_avis',
+  AUTRE: 'autre',
+});
+
+// Taux prélevé par la plateforme sur une vente marketplace, en pourcentage.
+// Un vendeur peut avoir un taux négocié sur son profil, qui prime sur celui-ci.
+const TAUX_COMMISSION_DEFAUT = Number(process.env.TAUX_COMMISSION_DEFAUT) || 10;
+
+const STATUT_REVERSEMENT = Object.freeze({
+  EN_ATTENTE: 'en_attente',
+  PAYE: 'paye',
+  ANNULE: 'annule',
+});
+
+const STATUT_RETOUR = Object.freeze({
+  DEMANDE: 'demande',
+  ACCEPTE: 'accepte',
+  REFUSE: 'refuse',
+  REMBOURSE: 'rembourse',
+});
+
 module.exports = {
   ROLES,
   STATUT_COMMANDE,
@@ -92,4 +155,13 @@ module.exports = {
   FRAIS_LIVRAISON_DEFAUT,
   PAGINATION,
   UPLOAD,
+  NIVEAU_STOCK,
+  SEUILS_STOCK,
+  FENETRE_COUVERTURE_JOURS,
+  ORIGINE_ACTION,
+  RESPONSABILITE,
+  MOTIF_RETOUR,
+  STATUT_RETOUR,
+  TAUX_COMMISSION_DEFAUT,
+  STATUT_REVERSEMENT,
 };

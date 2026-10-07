@@ -8,6 +8,8 @@ const validate = require('../../middlewares/validate.middleware');
 const {
   rejeterCommandeSchema,
   creerCommandeAdminSchema,
+  annulerCommandeSchema,
+  modifierCommandeSchema,
 } = require('../../validations/commande.validation');
 const { NotFoundError } = require('../../errors/AppError');
 
@@ -20,6 +22,11 @@ router.param('id', (_req, _res, next, id) =>
 );
 
 router.get('/kpi', adminMiddleware, ctrl.getKpi);
+// Avant `/:id` : « fiabilite-vendeurs » n'est pas un identifiant de commande.
+router.get('/fiabilite-vendeurs', adminMiddleware, ctrl.getFiabiliteVendeurs);
+// `:userId` et non `:id` : le garde UUID ci-dessus ne s'applique qu'à `id`, et
+// ce segment désigne un client, pas une commande.
+router.get('/client/:userId', adminMiddleware, ctrl.getParClient);
 router.get('/', adminMiddleware, ctrl.getAll);
 router.get('/export', adminMiddleware, ctrl.exportCsv);
 router.get('/:id', adminMiddleware, ctrl.getOne);
@@ -28,6 +35,8 @@ router.patch('/:id/rejeter', adminMiddleware, validate(rejeterCommandeSchema), c
 router.patch('/:id/preparation', adminMiddleware, ctrl.mettreEnPreparation);
 router.patch('/:id/expedier', adminMiddleware, ctrl.marquerExpediee);
 router.patch('/:id/livrer', adminMiddleware, ctrl.marquerLivree);
+router.patch('/:id/annuler', adminMiddleware, validate(annulerCommandeSchema), ctrl.annuler);
+router.patch('/:id/modifier', adminMiddleware, validate(modifierCommandeSchema), ctrl.modifier);
 router.post('/', adminMiddleware, validate(creerCommandeAdminSchema), ctrl.creer);
 
 module.exports = router;

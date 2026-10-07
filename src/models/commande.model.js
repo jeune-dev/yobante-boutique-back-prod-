@@ -60,6 +60,48 @@ const Commande = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: true,
     },
+    // ── Annulation ───────────────────────────────────────────────
+    // Distinct de `motifRejet` : un rejet refuse une commande en attente,
+    // une annulation interrompt une commande déjà engagée.
+    motifAnnulation: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    annulePar: {
+      type: DataTypes.ENUM('client', 'admin', 'vendeur'),
+      allowNull: true,
+    },
+    // Renseigné uniquement quand l'incident est imputable à quelqu'un.
+    // `vendeur` + `vendeurResponsableId` alimentent le score de fiabilité.
+    responsabiliteAnnulation: {
+      type: DataTypes.ENUM('vendeur', 'client', 'transport', 'autre'),
+      allowNull: true,
+    },
+    vendeurResponsableId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
+    annuleeAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    // ── Modification ─────────────────────────────────────────────
+    modifieeAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    modifieePar: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
+    // Journal des retouches : [{ date, parQui, motif, responsabilite,
+    // changements: [{ champ, avant, apres }] }]. Conservé pour le suivi
+    // de fiabilité et pour justifier un écart de montant auprès du client.
+    historiqueModifications: {
+      type: DataTypes.JSONB,
+      allowNull: false,
+      defaultValue: [],
+    },
     createdAt: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
@@ -72,6 +114,28 @@ const Commande = sequelize.define(
   {
     timestamps: true,
     tableName: 'commandes',
+    // Champs d'attribution interne, jamais destinés au client : le journal des
+    // retouches contient des motifs rédigés en interne et des identifiants
+    // d'administrateurs, et la responsabilité d'un incident ne regarde pas
+    // l'acheteur. Même protection que `prixAchat` sur le produit : exclus par
+    // défaut, réincluus explicitement via `Commande.scope('administration')`.
+    //
+    // `motifAnnulation` en fait partie : le client est averti que sa commande
+    // est annulée, jamais de la raison réelle, qui peut mettre en cause un
+    // vendeur. Restent visibles, parce qu'ils le concernent sans rien
+    // divulguer : `annulePar`, `annuleeAt`, `modifieeAt`.
+    defaultScope: {
+      attributes: {
+        exclude: [
+          'motifAnnulation',
+          'historiqueModifications',
+          'modifieePar',
+          'vendeurResponsableId',
+          'responsabiliteAnnulation',
+        ],
+      },
+    },
+    scopes: { administration: {} },
     indexes: [
       { fields: ['userId'] },
       { fields: ['adresseId'] },

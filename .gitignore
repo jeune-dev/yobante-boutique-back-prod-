@@ -1,5 +1,10 @@
 node_modules/
+# `.env` seul ne couvrait pas les copies de travail : un `.env.bak-...` créé
+# avant une manipulation se retrouvait non ignoré, avec les vrais secrets
+# dedans. On ignore toute la famille et on ré-autorise le seul gabarit.
 .env
+.env.*
+!.env.example
 logs/
 uploads/
 *.log

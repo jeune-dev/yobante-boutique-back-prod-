@@ -21,6 +21,9 @@
         "dateLivraisonSouhaitee": "2026-10-01",
         "noteAdmin": "noteAdmin-exemple",
         "motifRejet": "motifRejet-exemple",
+        "annulePar": "client",
+        "annuleeAt": "2026-09-20T10:00:00.000Z",
+        "modifieeAt": "2026-09-20T10:00:00.000Z",
         "createdAt": "2026-09-20T10:00:00.000Z",
         "updatedAt": "2026-09-20T10:00:00.000Z",
         "user": {
@@ -64,7 +67,13 @@
             }
           }
         ],
-        "montantVendeur": 3000
+        "montantVendeur": 3000,
+        "acceptation": {
+          "statut": "acceptee",
+          "motifRefus": "motifRefus-exemple",
+          "decideLe": "2026-09-20T10:00:00.000Z"
+        },
+        "decisionPossible": false
       }
     }
   }

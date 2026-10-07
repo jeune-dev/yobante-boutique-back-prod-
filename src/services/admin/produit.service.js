@@ -1,11 +1,17 @@
 const { Op } = require('sequelize');
-const { Produit, User, Rayon, SousRayon, ProfilVendeur } = require('../../models');
+const { Produit, User, Rayon, SousRayon, ProfilVendeur, sequelize } = require('../../models');
 const { generateUniqueSlug } = require('../../utils/slugify');
 const paginate = require('../../utils/paginate');
 const logger = require('../../config/logger');
 const { uploadImage, deleteImage } = require('../r2.service');
 const { sendEmail } = require('../resend.service');
-const { STATUT_VALIDATION_PRODUIT } = require('../../constants');
+const {
+  STATUT_VALIDATION_PRODUIT,
+  STATUT_COMMANDE,
+  STATUT_RETOUR,
+  FENETRE_COUVERTURE_JOURS,
+} = require('../../constants');
+const { niveauDeStock, joursDeCouverture } = require('../../utils/niveauStock');
 const NotificationService = require('../notification');
 
 /**
@@ -28,6 +34,137 @@ async function _sendProduitEmail(vendeurId, sujet, html) {
 }
 
 class GestionProduitService {
+  /**
+   * Indicateurs commerciaux pour un lot de produits.
+   *
+   * Deux requêtes agrégées pour toute la page, au lieu d'une par produit :
+   * la liste admin pagine par 20, soit 40 requêtes évitées par affichage.
+   *
+   * Seules les commandes livrées comptent comme des ventes — une commande en
+   * attente ou annulée ne doit ni gonfler le chiffre d'affaires ni fausser la
+   * vitesse d'écoulement qui sert à calculer la couverture de stock.
+   */
+  static async _statistiques(produitIds) {
+    if (!produitIds.length) return new Map();
+
+    const [ventes, retours] = await Promise.all([
+      sequelize.query(
+        `
+        SELECT
+          ci."produitId",
+          COALESCE(SUM(ci.quantite), 0)                          AS "quantiteVendue",
+          COALESCE(SUM(ci."sousTotal"), 0)                       AS "chiffreAffaires",
+          COALESCE(SUM(ci.quantite) FILTER (
+            WHERE c."createdAt" >= NOW() - (:fenetre || ' days')::interval
+          ), 0)                                                  AS "quantiteFenetre"
+        FROM commande_items ci
+        JOIN commandes c ON c.id = ci."commandeId"
+        WHERE ci."produitId" IN (:ids)
+          AND c.statut = :livree
+        GROUP BY ci."produitId"
+        `,
+        {
+          replacements: {
+            ids: produitIds,
+            livree: STATUT_COMMANDE.LIVREE,
+            fenetre: FENETRE_COUVERTURE_JOURS,
+          },
+          type: sequelize.QueryTypes.SELECT,
+        }
+      ),
+      // Un retour refusé n'est pas un retour : il ne doit pas peser sur le taux.
+      sequelize.query(
+        `
+        SELECT
+          "produitId",
+          COALESCE(SUM(quantite), 0) AS "quantiteRetournee",
+          COUNT(*)                   AS "nombreRetours"
+        FROM retours
+        WHERE "produitId" IN (:ids)
+          AND statut <> :refuse
+        GROUP BY "produitId"
+        `,
+        {
+          replacements: { ids: produitIds, refuse: STATUT_RETOUR.REFUSE },
+          type: sequelize.QueryTypes.SELECT,
+        }
+      ),
+    ]);
+
+    const parVentes = new Map(ventes.map((v) => [v.produitId, v]));
+    const parRetours = new Map(retours.map((r) => [r.produitId, r]));
+
+    return new Map(
+      produitIds.map((id) => {
+        const v = parVentes.get(id);
+        const r = parRetours.get(id);
+        return [
+          id,
+          {
+            quantiteVendue: Number(v?.quantiteVendue) || 0,
+            chiffreAffaires: Number(v?.chiffreAffaires) || 0,
+            quantiteFenetre: Number(v?.quantiteFenetre) || 0,
+            quantiteRetournee: Number(r?.quantiteRetournee) || 0,
+            nombreRetours: Number(r?.nombreRetours) || 0,
+          },
+        ];
+      })
+    );
+  }
+
+  /**
+   * Enrichit un produit de ses indicateurs calculés.
+   *
+   * `margeBrute` reste à `null` quand le prix d'achat n'est pas renseigné :
+   * afficher 0 laisserait croire à une marge nulle alors que l'information
+   * est simplement absente.
+   */
+  static _avecIndicateurs(produit, stats) {
+    const brut = typeof produit.toJSON === 'function' ? produit.toJSON() : { ...produit };
+    const s = stats || {
+      quantiteVendue: 0,
+      chiffreAffaires: 0,
+      quantiteFenetre: 0,
+      quantiteRetournee: 0,
+      nombreRetours: 0,
+    };
+
+    const prixAchat =
+      brut.prixAchat === null || brut.prixAchat === undefined ? null : Number(brut.prixAchat);
+    const coutTotal = prixAchat === null ? null : prixAchat * s.quantiteVendue;
+    const margeBrute =
+      coutTotal === null ? null : Number((s.chiffreAffaires - coutTotal).toFixed(2));
+
+    // Marge unitaire : exploitable même sans aucune vente, contrairement à la
+    // marge brute cumulée.
+    const prixVente = Number(brut.prixPromo ?? brut.prix) || 0;
+    const margeUnitaire = prixAchat === null ? null : Number((prixVente - prixAchat).toFixed(2));
+
+    return {
+      ...brut,
+      indicateurs: {
+        quantiteVendue: s.quantiteVendue,
+        stockRestant: Number(brut.stock) || 0,
+        stockDisponible: (Number(brut.stock) || 0) - (Number(brut.stockAlloue) || 0),
+        chiffreAffaires: s.chiffreAffaires,
+        margeBrute,
+        margeUnitaire,
+        tauxMarge:
+          margeUnitaire === null || prixVente === 0
+            ? null
+            : Number(((margeUnitaire / prixVente) * 100).toFixed(1)),
+        joursCouverture: joursDeCouverture(brut.stock, s.quantiteFenetre, FENETRE_COUVERTURE_JOURS),
+        fenetreCouvertureJours: FENETRE_COUVERTURE_JOURS,
+        niveauStock: niveauDeStock(brut.stock),
+        nombreRetours: s.nombreRetours,
+        quantiteRetournee: s.quantiteRetournee,
+        tauxRetour: s.quantiteVendue
+          ? Number(((s.quantiteRetournee / s.quantiteVendue) * 100).toFixed(1))
+          : 0,
+      },
+    };
+  }
+
   /**
    * Vérifie que le sous-rayon existe et relève bien du rayon annoncé.
    *
@@ -142,7 +279,12 @@ class GestionProduitService {
       ],
     });
     if (!produit) return { success: false, message: 'Produit introuvable' };
-    return { success: true, produit };
+
+    const stats = await GestionProduitService._statistiques([produit.id]);
+    return {
+      success: true,
+      produit: GestionProduitService._avecIndicateurs(produit, stats.get(produit.id)),
+    };
   }
 
   static async getAllProduits({
@@ -208,10 +350,14 @@ class GestionProduitService {
       offset,
     });
 
+    // Les indicateurs sont calculés pour la page affichée seulement : les
+    // agréger sur tout le catalogue à chaque requête serait inutilement cher.
+    const stats = await GestionProduitService._statistiques(rows.map((r) => r.id));
+
     return {
       success: true,
       message: 'Liste des produits',
-      produits: rows,
+      produits: rows.map((r) => GestionProduitService._avecIndicateurs(r, stats.get(r.id))),
       pagination: { total: count, totalPages: Math.ceil(count / l), page: p, limit: l },
     };
   }

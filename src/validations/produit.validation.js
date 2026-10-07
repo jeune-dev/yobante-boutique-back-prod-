@@ -3,6 +3,24 @@
 // ─────────────────────────────────────────────────────────────
 const Joi = require('joi');
 
+/**
+ * Prix d'achat, facultatif.
+ *
+ * Le formulaire produit est envoyé en multipart : tout arrive sous forme de
+ * chaîne, et un champ vidé arrive comme chaîne vide. La convertir en `null`
+ * est ce qui permet d'effacer un prix d'achat saisi par erreur — un
+ * `Joi.number()` seul rejetait la requête entière avec « doit être un nombre ».
+ */
+const prixAchatOptionnel = Joi.any()
+  .optional()
+  .custom((valeur, helpers) => {
+    if (valeur === '' || valeur === null) return null;
+    const nombre = Number(valeur);
+    if (!Number.isFinite(nombre) || nombre < 0) return helpers.error('any.invalid');
+    return nombre;
+  })
+  .messages({ 'any.invalid': "Le prix d'achat doit être un nombre positif" });
+
 // La catégorie a été retirée du formulaire produit : le classement se fait
 // exclusivement par rayon puis sous-rayon. Un `categorieId` encore envoyé par
 // un ancien client est simplement ignoré (`stripUnknown` côté middleware) : la
@@ -12,11 +30,7 @@ const createProduitSchema = Joi.object({
   description: Joi.string().trim().allow('', null).optional(),
   prix: Joi.number().min(0).required(),
   prixPromo: Joi.number().min(0).allow(null).optional(),
-  prixAchat: Joi.number()
-    .min(0)
-    .allow(null)
-    .optional()
-    .messages({ 'number.base': "Le prix d'achat doit être un nombre" }),
+  prixAchat: prixAchatOptionnel,
   stock: Joi.number().integer().min(0).default(0),
   images: Joi.array().items(Joi.string().trim()).optional(),
   // Le rangement en rayon commande la navigation de l'accueil mobile : un
@@ -41,11 +55,7 @@ const updateProduitSchema = Joi.object({
   description: Joi.string().trim().allow('', null).optional(),
   prix: Joi.number().min(0).optional(),
   prixPromo: Joi.number().min(0).allow(null).optional(),
-  prixAchat: Joi.number()
-    .min(0)
-    .allow(null)
-    .optional()
-    .messages({ 'number.base': "Le prix d'achat doit être un nombre" }),
+  prixAchat: prixAchatOptionnel,
   stock: Joi.number().integer().min(0).optional(),
   images: Joi.array().items(Joi.string().trim()).optional(),
   // Facultatifs en modification : on ne réimpose pas le rangement à chaque

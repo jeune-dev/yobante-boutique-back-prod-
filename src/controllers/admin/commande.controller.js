@@ -28,6 +28,42 @@ exports.getOne = asyncHandler(async (req, res) => {
   return ok(res, { commande: result.commande }, 'Commande récupérée');
 });
 
+exports.annuler = asyncHandler(async (req, res) => {
+  const result = await GestionCommandeService.annulerCommande(req.params.id, {
+    ...req.body,
+    adminId: req.user?.id,
+  });
+  if (!result.success) {
+    if (result.status === 404) throw new NotFoundError(result.message);
+    throw new BadRequestError(result.message);
+  }
+  return ok(res, { commande: result.commande }, result.message);
+});
+
+exports.modifier = asyncHandler(async (req, res) => {
+  const result = await GestionCommandeService.modifierCommande(req.params.id, {
+    ...req.body,
+    adminId: req.user?.id,
+  });
+  if (!result.success) {
+    if (result.status === 404) throw new NotFoundError(result.message);
+    throw new BadRequestError(result.message);
+  }
+  return ok(res, { commande: result.commande, changements: result.changements }, result.message);
+});
+
+exports.getFiabiliteVendeurs = asyncHandler(async (req, res) => {
+  const result = await GestionCommandeService.getFiabiliteVendeurs(req.query);
+  return ok(res, { vendeurs: result.vendeurs }, 'Fiabilité des vendeurs');
+});
+
+// Historique complet d'un client, lignes de commande incluses : alimente
+// l'onglet « Commandes » de sa fiche.
+exports.getParClient = asyncHandler(async (req, res) => {
+  const result = await GestionCommandeService.getCommandesParClient(req.params.userId);
+  return ok(res, { commandes: result.commandes }, 'Commandes du client');
+});
+
 exports.valider = asyncHandler(async (req, res) => {
   const result = await GestionCommandeService.validerCommande(req.params.id, req.body.noteAdmin);
   if (!result.success) throw new BadRequestError(result.message);

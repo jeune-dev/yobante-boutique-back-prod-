@@ -1,8 +1,21 @@
 const { Op } = require('sequelize');
-const { Commande, CommandeItem, Produit, User, Adresse, sequelize } = require('../../models');
+const {
+  Commande,
+  CommandeItem,
+  Produit,
+  User,
+  Adresse,
+  AcceptationCommande,
+  sequelize,
+} = require('../../models');
 const paginate = require('../../utils/paginate');
 const { round2 } = require('../../utils/money');
-const { STATUT_COMMANDE } = require('../../constants');
+const { STATUT_COMMANDE, ROLES } = require('../../constants');
+const NotificationService = require('../notification');
+
+// Un vendeur décide tant que la commande n'est pas engagée en logistique :
+// au-delà, les articles sont déjà préparés ou partis.
+const STATUTS_DECIDABLES = [STATUT_COMMANDE.EN_ATTENTE, STATUT_COMMANDE.VALIDEE];
 
 // Une commande annulée ne compte ni dans le chiffre d'affaires ni dans les ventes.
 const STATUTS_VENDUS = Object.values(STATUT_COMMANDE).filter((s) => s !== STATUT_COMMANDE.ANNULEE);
@@ -58,7 +71,7 @@ class VendeurCommandeService {
     // sur `produit` ne peut plus référencer la table jointe.
     const [count, pageIds] = await Promise.all([
       Commande.count({ where }),
-      Commande.findAll({
+      Commande.scope('administration').findAll({
         where,
         attributes: ['id'],
         order: [['createdAt', 'DESC']],
@@ -69,7 +82,7 @@ class VendeurCommandeService {
     ]);
 
     const rows = pageIds.length
-      ? await Commande.findAll({
+      ? await Commande.scope('administration').findAll({
           where: { id: { [Op.in]: pageIds.map((c) => c.id) } },
           include: [
             { model: User, as: 'user', attributes: ['id', 'nom', 'prenom', 'telephone'] },
@@ -110,7 +123,7 @@ class VendeurCommandeService {
   static async getCommandeById(vendeurId, id) {
     // findAll plutôt que findOne : ce dernier ajoute un `limit: 1` implicite qui
     // déclencherait la même sous-requête incompatible que dans getMesCommandes.
-    const [commande] = await Commande.findAll({
+    const [commande] = await Commande.scope('administration').findAll({
       where: { id },
       include: [
         { model: User, as: 'user', attributes: ['id', 'nom', 'prenom', 'telephone', 'email'] },
@@ -140,7 +153,139 @@ class VendeurCommandeService {
     const montantVendeur = round2(json.items.reduce((sum, i) => sum + Number(i.sousTotal), 0));
     delete json.montantTotal;
 
-    return { success: true, commande: { ...json, montantVendeur } };
+    // Sa propre décision, et s'il peut encore en prendre une : sans cela le
+    // vendeur ne saurait pas s'il a déjà répondu ni pourquoi le bouton a
+    // disparu.
+    const decision = await AcceptationCommande.findOne({
+      where: { commandeId: id, vendeurId },
+      attributes: ['statut', 'motifRefus', 'decideLe'],
+    });
+
+    return {
+      success: true,
+      commande: {
+        ...json,
+        montantVendeur,
+        acceptation: decision ? decision.toJSON() : null,
+        decisionPossible: !decision && STATUTS_DECIDABLES.includes(json.statut),
+      },
+    };
+  }
+
+  /**
+   * Décision du vendeur sur une commande : il l'accepte ou la refuse.
+   *
+   * Une commande pouvant mêler plusieurs vendeurs, la décision ne porte que
+   * sur les lignes de celui qui décide — elle ne change donc pas le statut de
+   * la commande, qui reste piloté par l'administration.
+   *
+   * La décision est définitive : la revenir dessus fausserait le taux
+   * d'acceptation, qui n'aurait plus de sens comme indicateur de fiabilité.
+   */
+  static async decider(vendeurId, commandeId, { statut, motif } = {}) {
+    if (!['acceptee', 'refusee'].includes(statut)) {
+      return { success: false, status: 400, message: 'Décision inconnue' };
+    }
+    // Un refus sans motif ne permet ni d'informer l'administration ni d'en
+    // tirer un suivi : on l'exige.
+    if (statut === 'refusee' && !motif?.trim()) {
+      return { success: false, status: 400, message: 'Le motif du refus est obligatoire' };
+    }
+
+    // Réutilise la portée du vendeur : une commande sans ligne à lui ressort
+    // introuvable, ce qui empêche de décider pour autrui.
+    const vue = await VendeurCommandeService.getCommandeById(vendeurId, commandeId);
+    if (!vue.success) return { success: false, status: 404, message: 'Commande introuvable' };
+
+    if (!STATUTS_DECIDABLES.includes(vue.commande.statut)) {
+      return {
+        success: false,
+        status: 400,
+        message: `Une commande « ${vue.commande.statut} » ne peut plus être acceptée ni refusée`,
+      };
+    }
+
+    const existante = await AcceptationCommande.findOne({ where: { commandeId, vendeurId } });
+    if (existante) {
+      return {
+        success: false,
+        status: 409,
+        message: `Vous avez déjà ${existante.statut === 'acceptee' ? 'accepté' : 'refusé'} cette commande`,
+      };
+    }
+
+    const decision = await AcceptationCommande.create({
+      commandeId,
+      vendeurId,
+      statut,
+      motifRefus: statut === 'refusee' ? motif.trim() : null,
+      decideLe: new Date(),
+    });
+
+    // L'administration doit voir passer un refus sans attendre de consulter
+    // un tableau : c'est elle qui devra réattribuer ou annuler.
+    if (statut === 'refusee') {
+      await NotificationService.emettre({
+        userIds: await VendeurCommandeService.#idsAdministrateurs(),
+        titre: 'Commande refusée par un vendeur',
+        message: `La commande ${vue.commande.reference} a été refusée. Motif : ${motif.trim()}`,
+        type: 'commande_refusee_vendeur',
+        donnees: { commandeId, vendeurId },
+      });
+    }
+
+    return {
+      success: true,
+      message: statut === 'acceptee' ? 'Commande acceptée' : 'Commande refusée',
+      decision,
+    };
+  }
+
+  /** Administrateurs actifs, destinataires des alertes de refus. */
+  static async #idsAdministrateurs() {
+    const admins = await User.findAll({
+      where: { role: ROLES.ADMIN, isActive: true },
+      attributes: ['id'],
+      raw: true,
+    });
+    return admins.map((a) => a.id);
+  }
+
+  /**
+   * Taux d'acceptation d'un vendeur.
+   *
+   * Dénominateur : les commandes qui lui ont été soumises, c'est-à-dire
+   * celles contenant au moins un de ses produits. Les commandes encore sans
+   * décision comptent dans le total mais ni en accepté ni en refusé — sinon
+   * un vendeur qui ne répond jamais afficherait 100 % d'acceptation.
+   */
+  static async getTauxAcceptation(vendeurId) {
+    const [soumises, decisions] = await Promise.all([
+      VendeurCommandeService.#commandeIdsDuVendeur(vendeurId),
+      AcceptationCommande.findAll({
+        where: { vendeurId },
+        attributes: ['statut', [sequelize.fn('COUNT', sequelize.col('id')), 'nb']],
+        group: ['statut'],
+        raw: true,
+      }),
+    ]);
+
+    const total = soumises.length;
+    const parStatut = Object.fromEntries(decisions.map((d) => [d.statut, Number(d.nb)]));
+    const acceptees = parStatut.acceptee || 0;
+    const refusees = parStatut.refusee || 0;
+
+    return {
+      success: true,
+      acceptation: {
+        soumises: total,
+        acceptees,
+        refusees,
+        enAttente: Math.max(0, total - acceptees - refusees),
+        tauxAcceptation: total ? Number(((acceptees / total) * 100).toFixed(1)) : 0,
+        tauxRefus: total ? Number(((refusees / total) * 100).toFixed(1)) : 0,
+      },
+    };
   }
 
   /**

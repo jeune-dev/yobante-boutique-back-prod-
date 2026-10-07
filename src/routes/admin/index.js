@@ -24,5 +24,8 @@ router.use('/blocs-promo', require('./blocPromo.route'));
 router.use('/frais-livraison', require('./frais-livraison.route'));
 router.use('/rayons', require('./rayon.route'));
 router.use('/signalements', require('./signalement.route'));
+router.use('/retours', require('./retour.route'));
+router.use('/analytique', require('./analytique.route'));
+router.use('/finance', require('./finance.route'));
 
 module.exports = router;

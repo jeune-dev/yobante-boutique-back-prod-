@@ -32,6 +32,9 @@ const Abonnement = require('./Abonnement.model');
 const PaiementAbonnement = require('./PaiementAbonnement.model');
 const AdminPasswordReset = require('./AdminPasswordReset.model');
 const PasswordResetToken = require('./PasswordResetToken.model');
+const Retour = require('./Retour.model');
+const Reversement = require('./Reversement.model');
+const AcceptationCommande = require('./AcceptationCommande.model');
 
 // ── User associations ──────────────────────────────────────────
 User.hasMany(Commande, { foreignKey: 'userId', as: 'commandes', onDelete: 'CASCADE' });
@@ -189,6 +192,43 @@ User.hasMany(PasswordResetToken, {
   onDelete: 'CASCADE',
 });
 
+// ── Retour associations ────────────────────────────────────────
+Commande.hasMany(Retour, { foreignKey: 'commandeId', as: 'retours', onDelete: 'CASCADE' });
+Retour.belongsTo(Commande, { foreignKey: 'commandeId', as: 'commande' });
+CommandeItem.hasMany(Retour, { foreignKey: 'commandeItemId', as: 'retours', onDelete: 'SET NULL' });
+Retour.belongsTo(CommandeItem, { foreignKey: 'commandeItemId', as: 'commandeItem' });
+Produit.hasMany(Retour, { foreignKey: 'produitId', as: 'retours', onDelete: 'SET NULL' });
+Retour.belongsTo(Produit, { foreignKey: 'produitId', as: 'produit' });
+User.hasMany(Retour, { foreignKey: 'userId', as: 'retours', onDelete: 'SET NULL' });
+Retour.belongsTo(User, { foreignKey: 'userId', as: 'client' });
+// Alias distincts : le vendeur mis en cause et l'admin qui a traité le retour
+// sont deux utilisateurs différents sur la même table.
+Retour.belongsTo(User, { foreignKey: 'vendeurResponsableId', as: 'vendeurResponsable' });
+Retour.belongsTo(User, { foreignKey: 'traitePar', as: 'traiteur' });
+
+// Vendeur mis en cause par une annulation de commande.
+Commande.belongsTo(User, { foreignKey: 'vendeurResponsableId', as: 'vendeurResponsable' });
+Commande.belongsTo(User, { foreignKey: 'modifieePar', as: 'modificateur' });
+
+// ── Reversement associations ───────────────────────────────────
+User.hasMany(Reversement, { foreignKey: 'vendeurId', as: 'reversements', onDelete: 'CASCADE' });
+Reversement.belongsTo(User, { foreignKey: 'vendeurId', as: 'vendeur' });
+Reversement.belongsTo(User, { foreignKey: 'creePar', as: 'auteur' });
+
+// ── Acceptation d'une commande par un vendeur ──────────────────
+Commande.hasMany(AcceptationCommande, {
+  foreignKey: 'commandeId',
+  as: 'acceptations',
+  onDelete: 'CASCADE',
+});
+AcceptationCommande.belongsTo(Commande, { foreignKey: 'commandeId', as: 'commande' });
+User.hasMany(AcceptationCommande, {
+  foreignKey: 'vendeurId',
+  as: 'decisionsCommandes',
+  onDelete: 'CASCADE',
+});
+AcceptationCommande.belongsTo(User, { foreignKey: 'vendeurId', as: 'vendeur' });
+
 // ── Export all models ──────────────────────────────────────────
 module.exports = {
   sequelize,
@@ -221,4 +261,7 @@ module.exports = {
   PaiementAbonnement,
   AdminPasswordReset,
   PasswordResetToken,
+  Retour,
+  Reversement,
+  AcceptationCommande,
 };

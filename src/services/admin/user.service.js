@@ -5,11 +5,64 @@ const bcrypt = require('bcryptjs');
 const { Op } = require('sequelize');
 const { User, sequelize } = require('../../models');
 const { bcryptConfig } = require('../../config/security');
-const { ROLES } = require('../../constants');
+const { ROLES, STATUT_COMMANDE } = require('../../constants');
 const paginate = require('../../utils/paginate');
 const { toCsv } = require('../../utils/csv');
 
 class GestionUserService {
+  /**
+   * Activité commerciale d'un lot de clients : une requête agrégée pour toute
+   * la page plutôt qu'une par ligne.
+   *
+   * `nbCommandes` compte toutes les commandes passées, y compris annulées —
+   * c'est le volume d'activité du client. `montantDepense` ne retient que les
+   * commandes livrées, seules réellement encaissées.
+   */
+  static async _activite(clientIds) {
+    if (!clientIds.length) return new Map();
+
+    const rows = await sequelize.query(
+      `
+      SELECT
+        "userId",
+        COUNT(*)                                                      AS "nbCommandes",
+        COUNT(*) FILTER (WHERE statut = :livree)                      AS "nbCommandesLivrees",
+        COUNT(*) FILTER (WHERE statut IN (:annulee, :rejetee))        AS "nbCommandesAnnulees",
+        COALESCE(SUM("montantTotal") FILTER (WHERE statut = :livree), 0) AS "montantDepense",
+        MAX("createdAt")                                              AS "derniereCommande"
+      FROM commandes
+      WHERE "userId" IN (:ids)
+      GROUP BY "userId"
+      `,
+      {
+        replacements: {
+          ids: clientIds,
+          livree: STATUT_COMMANDE.LIVREE,
+          annulee: STATUT_COMMANDE.ANNULEE,
+          rejetee: STATUT_COMMANDE.REJETEE,
+        },
+        type: sequelize.QueryTypes.SELECT,
+      }
+    );
+
+    const parId = new Map(rows.map((r) => [r.userId, r]));
+    return new Map(
+      clientIds.map((id) => {
+        const r = parId.get(id);
+        return [
+          id,
+          {
+            nbCommandes: Number(r?.nbCommandes) || 0,
+            nbCommandesLivrees: Number(r?.nbCommandesLivrees) || 0,
+            nbCommandesAnnulees: Number(r?.nbCommandesAnnulees) || 0,
+            montantDepense: Number(r?.montantDepense) || 0,
+            derniereCommande: r?.derniereCommande || null,
+          },
+        ];
+      })
+    );
+  }
+
   static async listerClients({ page, limit, search } = {}) {
     const { page: p, limit: l, offset } = paginate(page, limit);
     const where = { role: ROLES.CLIENT };
@@ -29,10 +82,12 @@ class GestionUserService {
       offset,
     });
 
+    const activite = await GestionUserService._activite(rows.map((r) => r.id));
+
     return {
       success: true,
       message: 'Liste des clients',
-      clients: rows,
+      clients: rows.map((c) => ({ ...c.toJSON(), activite: activite.get(c.id) })),
       pagination: { total: count, totalPages: Math.ceil(count / l), page: p, limit: l },
     };
   }
@@ -48,7 +103,9 @@ class GestionUserService {
       attributes: { exclude: ['password'] },
     });
     if (!user) return { success: false, message: 'Client introuvable' };
-    return { success: true, user };
+
+    const activite = await GestionUserService._activite([user.id]);
+    return { success: true, user: { ...user.toJSON(), activite: activite.get(user.id) } };
   }
 
   static async activerUser(id) {

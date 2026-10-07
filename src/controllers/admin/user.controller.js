@@ -15,7 +15,12 @@ exports.getAll = asyncHandler(async (req, res) => {
   const result = await GestionUserService.listerClients({ search, page, limit });
   return ok(
     res,
-    { users: result.clients.map(formatUser), pagination: result.pagination },
+    {
+      // `formatUser` filtre les champs exposés ; l'activité commerciale est
+      // rattachée à côté plutôt qu'ajoutée au formateur, partagé avec l'auth.
+      users: result.clients.map((c) => ({ ...formatUser(c), activite: c.activite })),
+      pagination: result.pagination,
+    },
     result.message
   );
 });
@@ -90,7 +95,10 @@ exports.listeClients = asyncHandler(async (req, res) => {
   });
   return ok(
     res,
-    { clients: result.clients.map(formatUser), pagination: result.pagination },
+    {
+      clients: result.clients.map((c) => ({ ...formatUser(c), activite: c.activite })),
+      pagination: result.pagination,
+    },
     result.message
   );
 });

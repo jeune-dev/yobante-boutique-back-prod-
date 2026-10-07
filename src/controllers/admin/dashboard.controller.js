@@ -93,6 +93,22 @@ exports.getStatsVendeurs = asyncHandler(async (req, res) => {
 });
 
 exports.getKpiComplet = asyncHandler(async (req, res) => {
-  const result = await DashboardService.getKpiComplet();
+  // `periode`, `debut` et `fin` ne pilotent que les KPI de ventes ; les
+  // totaux globaux et les stocks restent à l'instant présent.
+  const result = await DashboardService.getKpiComplet(req.query);
   return ok(res, result, 'KPI complet');
+});
+
+exports.getKpiVentes = asyncHandler(async (req, res) => {
+  const result = await DashboardService.getKpiVentes(req.query);
+  return ok(res, { kpi: result.kpi, periode: result.periode }, 'KPI de ventes');
+});
+
+exports.getInscriptions = asyncHandler(async (req, res) => {
+  const result = await DashboardService.getInscriptionsParPeriode(req.query);
+  return ok(
+    res,
+    { pas: result.pas, inscriptions: result.inscriptions },
+    'Inscriptions par période'
+  );
 });

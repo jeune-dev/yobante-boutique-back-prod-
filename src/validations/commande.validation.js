@@ -87,4 +87,58 @@ const creerCommandeAdminSchema = Joi.object({
     .messages({ 'string.pattern.base': 'Date de livraison invalide (AAAA-MM-JJ attendu)' }),
 });
 
-module.exports = { passerCommandeSchema, rejeterCommandeSchema, creerCommandeAdminSchema };
+// Le motif est obligatoire pour annuler comme pour modifier : sans lui, le
+// suivi de fiabilité des vendeurs n'aurait rien à exploiter.
+const RESPONSABILITES = ['vendeur', 'client', 'transport', 'autre'];
+
+const annulerCommandeSchema = Joi.object({
+  motif: Joi.string().trim().min(3).max(500).required().messages({
+    'string.empty': "Le motif d'annulation est obligatoire",
+    'any.required': "Le motif d'annulation est obligatoire",
+    'string.min': 'Le motif doit faire au moins 3 caractères',
+  }),
+  responsabilite: Joi.string()
+    .valid(...RESPONSABILITES)
+    .optional()
+    .messages({ 'any.only': `Responsabilité attendue : ${RESPONSABILITES.join(', ')}` }),
+  vendeurResponsableId: Joi.string().uuid().allow(null).optional(),
+});
+
+const modifierCommandeSchema = Joi.object({
+  motif: Joi.string().trim().min(3).max(500).required().messages({
+    'string.empty': 'Le motif de modification est obligatoire',
+    'any.required': 'Le motif de modification est obligatoire',
+  }),
+  responsabilite: Joi.string()
+    .valid(...RESPONSABILITES)
+    .optional(),
+  vendeurResponsableId: Joi.string().uuid().allow(null).optional(),
+  // `items` remplace l'intégralité des lignes : une liste vide serait une
+  // commande sans article, ce qui n'a pas de sens — on annule, dans ce cas.
+  items: Joi.array()
+    .min(1)
+    .items(
+      Joi.object({
+        produitId: Joi.string().uuid().required(),
+        quantite: Joi.number().integer().min(1).required(),
+      })
+    )
+    .optional(),
+  note: Joi.string().trim().max(500).allow('', null).optional(),
+  dateLivraisonSouhaitee: Joi.string()
+    .pattern(/^\d{4}-\d{2}-\d{2}$/)
+    .allow(null)
+    .optional()
+    .messages({ 'string.pattern.base': 'Date de livraison invalide (AAAA-MM-JJ attendu)' }),
+})
+  // Au moins un champ modifiable, sinon la requête ne fait rien.
+  .or('items', 'note', 'dateLivraisonSouhaitee')
+  .messages({ 'object.missing': 'Indiquez au moins un élément à modifier' });
+
+module.exports = {
+  passerCommandeSchema,
+  rejeterCommandeSchema,
+  creerCommandeAdminSchema,
+  annulerCommandeSchema,
+  modifierCommandeSchema,
+};
