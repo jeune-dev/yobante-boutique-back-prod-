@@ -28,7 +28,7 @@ const bcrypt = require('bcryptjs');
 
 jest.mock('../../src/services/resend.service', () => ({ sendEmail: jest.fn(async () => ({ success: true })), FROM: 'test' }));
 jest.mock('../../src/utils/mailer', () => ({
-  sendMail: jest.fn(), sendOtpEmail: jest.fn(), sendWelcomeEmail: jest.fn(),
+  sendMail: jest.fn(), sendOtpEmail: jest.fn(), sendVerificationEmail: jest.fn(), sendWelcomeEmail: jest.fn(),
   sendResetPasswordEmail: jest.fn(), sendCommandeConfirmation: jest.fn(), sendCommandeStatut: jest.fn(),
   sendDemandeSuppressionCompteEmail: jest.fn(),
 }));
@@ -309,7 +309,7 @@ describe('Contrat API mobile ↔ backend', () => {
   it('POST /auth/register', async () => {
     models.User.findOne.mockResolvedValueOnce(null); // email libre
     const res = await request(app).post('/api/v1/auth/register').send({ nom: 'Sow', prenom: 'Fatou', email: 'fatou@exemple.com', password: 'Secret123', telephone: '+221771234567', adresse: { rue: 'Sicap' } });
-    const d = contrat('auth_register', res, { status: 201, cles: ['user', 'messageTitle', 'messageDescription'] });
+    const d = contrat('auth_register', res, { status: 201, cles: ['user', 'messageTitle', 'messageDescription', 'verificationRequise'] });
     expect(d.user).toMatchObject({ id: expect.any(String), email: expect.any(String), role: expect.any(String) });
   });
 
@@ -340,6 +340,16 @@ describe('Contrat API mobile ↔ backend', () => {
   it('POST /auth/forgot-password', async () => {
     const res = await request(app).post('/api/v1/auth/forgot-password').send({ email: 'fatou@exemple.com' });
     contrat('auth_forgot_password', res);
+  });
+
+  it('POST /auth/verify-email { email, code } → adresse confirmée', async () => {
+    const res = await request(app).post('/api/v1/auth/verify-email').send({ email: 'fatou@exemple.com', code: '123456' });
+    contrat('auth_verify_email', res, { cles: ['verifie'] });
+  });
+
+  it('POST /auth/resend-verification { email } → réponse générique', async () => {
+    const res = await request(app).post('/api/v1/auth/resend-verification').send({ email: 'fatou@exemple.com' });
+    contrat('auth_resend_verification', res);
   });
 
   it('POST /auth/verify-reset-code { email, code } → resetToken', async () => {

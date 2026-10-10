@@ -39,6 +39,8 @@ exports.register = asyncHandler(async (req, res) => {
         user: formatUser(result.user),
         messageTitle: result.message,
         messageDescription: result.messageDescription,
+        // Le mobile ouvre alors l'écran de saisie du code reçu par email.
+        verificationRequise: Boolean(result.verificationRequise),
       }
     : {};
   return created(res, data, result.message);
@@ -56,6 +58,21 @@ exports.login = asyncHandler(async (req, res) => {
   if (!password) throw new BadRequestError('Mot de passe requis');
 
   const result = await AuthService.login({ identifiant, password });
+
+  // Email non confirmé : 403 avec un repère machine, pour que le mobile ouvre
+  // l'écran de saisie du code sans comparer des libellés.
+  if (!result.success && result.code === AuthService.CODE_EMAIL_NON_VERIFIE) {
+    return res.status(403).json({
+      success: false,
+      message: result.error,
+      // Repères machine à la racine, comme MOT_DE_PASSE_A_CHANGER : l'enveloppe
+      // d'erreur garde `data: null`. L'email sert quand le client s'est
+      // connecté avec son numéro de téléphone.
+      code: result.code,
+      email: result.email,
+      data: null,
+    });
+  }
 
   if (!result.success) throw new BadRequestError(result.error || result.message);
 
@@ -202,5 +219,25 @@ exports.changePassword = asyncHandler(async (req, res) => {
 exports.changerPremierMotDePasse = asyncHandler(async (req, res) => {
   const result = await AuthService.changerPremierMotDePasse(req.user.id, req.body);
   if (!result.success) throw new BadRequestError(result.message);
+  return ok(res, {}, result.message);
+});
+
+/**
+ * POST /api/v1/auth/verify-email
+ * Confirme l'adresse email avec le code à 6 chiffres reçu à l'inscription.
+ */
+exports.verifyEmail = asyncHandler(async (req, res) => {
+  const { email, code } = req.body;
+  const result = await AuthService.verifyEmail(email, code);
+  if (!result.success) throw new BadRequestError(result.message);
+  return ok(res, { verifie: true }, result.message);
+});
+
+/**
+ * POST /api/v1/auth/resend-verification
+ * Renvoie un code de confirmation (réponse identique que le compte existe ou non).
+ */
+exports.resendVerification = asyncHandler(async (req, res) => {
+  const result = await AuthService.resendVerification(req.body.email);
   return ok(res, {}, result.message);
 });

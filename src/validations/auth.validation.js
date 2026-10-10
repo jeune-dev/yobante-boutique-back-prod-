@@ -44,6 +44,20 @@ const forgotPasswordSchema = Joi.object({
   email: Joi.string().trim().email().required(),
 });
 
+// Confirmation de l'adresse email après l'inscription (code à 6 chiffres).
+const verifyEmailSchema = Joi.object({
+  email: Joi.string().trim().email().required(),
+  code: Joi.string()
+    .trim()
+    .pattern(/^[0-9]{6}$/)
+    .required()
+    .messages({ 'string.pattern.base': 'Le code doit contenir 6 chiffres' }),
+});
+
+const resendVerificationSchema = Joi.object({
+  email: Joi.string().trim().email().required(),
+});
+
 const verifyResetCodeSchema = Joi.object({
   email: Joi.string().trim().email().required(),
   code: Joi.string().trim().min(6).max(6).required(),
@@ -88,6 +102,8 @@ module.exports = {
   // répondait 500 à CHAQUE appel, et la réinitialisation du mot de passe
   // était impossible pour tous les utilisateurs.
   verifyResetCodeSchema,
+  verifyEmailSchema,
+  resendVerificationSchema,
   resetPasswordSchema,
   changePasswordSchema,
   changerPremierMdpSchema,

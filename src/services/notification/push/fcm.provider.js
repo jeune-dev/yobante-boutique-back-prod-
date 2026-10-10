@@ -78,15 +78,27 @@ class FcmProvider {
       notification: { title: titre, body: message },
       data,
       android: {
+        // Priorité haute : remise immédiate même téléphone en veille (Doze).
         priority: 'high',
+        // Téléphone éteint ou hors réseau : FCM garde le message 7 jours et le
+        // délivre au retour du réseau.
+        ttl: 7 * 24 * 60 * 60 * 1000,
         notification: {
-          // Le canal doit exister côté application, sinon Android ignore
-          // silencieusement l'importance demandée.
+          // Canal créé par l'application (NotificationService) : importance
+          // haute, bandeau + son.
           channelId: 'yobante_general',
-          icon: 'ic_launcher',
+          // Pictogramme en silhouette, teinté du bleu Yobante.
+          icon: 'ic_notification',
+          color: '#053D8F',
+          sound: 'default',
+          defaultVibrateTimings: true,
+          notificationPriority: 'PRIORITY_HIGH',
+          // Contenu lisible sur l'écran verrouillé.
+          visibility: 'public',
         },
       },
       apns: {
+        headers: { 'apns-priority': '10', 'apns-push-type': 'alert' },
         payload: { aps: { sound: 'default', badge: 1 } },
       },
     });

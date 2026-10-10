@@ -3,11 +3,18 @@
 // ─────────────────────────────────────────────────────────────
 const bcrypt = require('bcryptjs');
 const { Op } = require('sequelize');
-const { User, sequelize } = require('../../models');
+const { User, RefreshToken, sequelize } = require('../../models');
 const { bcryptConfig } = require('../../config/security');
 const { ROLES, STATUT_COMMANDE } = require('../../constants');
 const paginate = require('../../utils/paginate');
 const { toCsv } = require('../../utils/csv');
+const cache = require('../../config/cache');
+
+/** Purge le cache d'authentification : le changement est vu dès la requête suivante. */
+const invaliderCacheAuth = (userId) => {
+  cache.del(`auth:${userId}`);
+  cache.del(`${ROLES.ADMIN}:${userId}`);
+};
 
 class GestionUserService {
   /**
@@ -115,6 +122,7 @@ class GestionUserService {
     });
     if (!user) return { success: false, message: 'Utilisateur introuvable' };
     await user.update({ isActive: true });
+    invaliderCacheAuth(id);
     return { success: true, message: 'Utilisateur activé avec succès', user };
   }
 
@@ -124,7 +132,33 @@ class GestionUserService {
       attributes: { exclude: ['password'] },
     });
     if (!user) return { success: false, message: 'Utilisateur introuvable' };
-    await user.update({ isActive: false });
+
+    // La désactivation est l'outil utilisé face à un compte compromis ou
+    // abusif : elle doit couper l'accès tout de suite.
+    //  - purge du cache : le profil {role, isActive} est mémorisé 30 s par le
+    //    middleware d'authentification. Sans cette purge, le compte gardait
+    //    un accès complet pendant ce délai. Le blocage d'un administrateur et
+    //    celui d'un vendeur purgeaient déjà ce cache ; la désactivation d'un
+    //    utilisateur, non.
+    //  - révocation des refresh tokens : `AuthService.refresh` refuse déjà un
+    //    compte inactif, donc rien n'était exploitable immédiatement. Mais
+    //    les jetons restaient valides en base, et une réactivation ultérieure
+    //    du compte les remettait en service — y compris un jeton volé avant
+    //    la désactivation, pendant les 7 jours de sa durée de vie.
+    const t = await sequelize.transaction();
+    try {
+      await user.update({ isActive: false }, { transaction: t });
+      await RefreshToken.update(
+        { revoked: true },
+        { where: { userId: id, revoked: false }, transaction: t }
+      );
+      await t.commit();
+    } catch (err) {
+      await t.rollback();
+      throw err;
+    }
+
+    invaliderCacheAuth(id);
     return { success: true, message: 'Utilisateur désactivé avec succès', user };
   }
 

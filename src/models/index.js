@@ -120,6 +120,8 @@ Favori.belongsTo(ProfilVendeur, { foreignKey: 'profilVendeurId', as: 'boutique' 
 
 // ── Banniere associations ──────────────────────────────────────
 Banniere.belongsTo(Categorie, { foreignKey: 'categorieId', as: 'categorie' });
+// Rayon ouvert par la bannière dans l'application.
+Banniere.belongsTo(Rayon, { foreignKey: 'rayonId', as: 'rayon' });
 
 // ── Promotion associations ─────────────────────────────────────
 Promotion.belongsTo(Produit, { foreignKey: 'produitId', as: 'produit' });

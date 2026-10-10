@@ -14,7 +14,8 @@ const {
   sequelize,
 } = require('../models');
 const { bcryptConfig, jwtConfig } = require('../config/security');
-const { sendResetPasswordEmail } = require('../utils/mailer');
+const { sendResetPasswordEmail, sendVerificationEmail } = require('../utils/mailer');
+const logger = require('../utils/logger');
 const cache = require('../config/cache');
 
 /**
@@ -26,6 +27,12 @@ function _purgerCacheAuth(userId) {
   cache.del(`auth:${userId}`);
   cache.del(`ADMIN:${userId}`);
 }
+
+/** Durée de validité du code de confirmation de l'adresse email. */
+const DUREE_CODE_VERIFICATION_MIN = 15;
+
+/** Repère renvoyé au mobile quand un client tente de se connecter sans avoir confirmé son email. */
+const CODE_EMAIL_NON_VERIFIE = 'EMAIL_NON_VERIFIE';
 
 function _generateOtp(length = 6) {
   const chars = '0123456789';
@@ -101,7 +108,9 @@ class AuthService {
           email: emailClean,
           password: hashedPassword,
           telephone,
-          isVerified: true,
+          // L'adresse email doit être confirmée par le code envoyé ci-dessous
+          // avant la première connexion.
+          isVerified: false,
         },
         { transaction: t }
       );
@@ -126,13 +135,17 @@ class AuthService {
 
       await t.commit();
 
-      // Décision produit : après l'inscription, l'utilisateur se connecte
-      // explicitement (pas d'auto-connexion). Les textes du message de succès
-      // sont fournis ici pour que le mobile les affiche tels quels.
+      // Code de confirmation envoyé APRÈS le commit : le compte existe même si
+      // l'envoi échoue, et le client peut redemander un code depuis l'app.
+      await AuthService.envoyerCodeVerification(user);
+
+      // Pas de session ouverte ici : le client saisit d'abord le code reçu
+      // par email (POST /auth/verify-email), puis se connecte.
       return {
         success: true,
-        message: 'Inscription réussie',
-        messageDescription: 'Veuillez vous connecter pour accéder à votre dashboard.',
+        message: 'Compte créé',
+        messageDescription: `Un code de confirmation à 6 chiffres a été envoyé à ${emailClean}.`,
+        verificationRequise: true,
         user,
       };
     } catch (err) {
@@ -171,7 +184,22 @@ class AuthService {
       return {
         success: false,
         code: 'ROLE_NON_AUTORISE',
-        error: 'Accès réservé aux administrateurs Yobante.',
+        // Un vendeur qui tente le dashboard est guidé vers l'application.
+        error:
+          user.role === 'VENDEUR'
+            ? "Votre espace vendeur est disponible dans l'application mobile Yobante Boutique. Connectez-vous depuis l'application avec ces mêmes identifiants."
+            : 'Accès réservé aux administrateurs Yobante.',
+      };
+
+    // Client inscrit depuis l'application dont l'email n'est pas confirmé :
+    // pas de session tant que le code reçu par email n'a pas été saisi.
+    // Vérifié après le mot de passe pour ne rien révéler à un inconnu.
+    if (!user.isVerified && user.role === 'CLIENT')
+      return {
+        success: false,
+        code: CODE_EMAIL_NON_VERIFIE,
+        email: user.email,
+        error: "Votre adresse email n'est pas encore confirmée. Saisissez le code reçu par email.",
       };
 
     const accessToken = _generateAccessToken(user);
@@ -256,6 +284,99 @@ class AuthService {
     return { success: true };
   }
 
+  // -------------------- CONFIRMATION DE L'EMAIL (OTP) --------------------
+  /**
+   * Génère un nouveau code à 6 chiffres (les précédents sont invalidés) et
+   * l'envoie par email. Seul le hachage du code est conservé en base.
+   * Ne lève jamais : un échec d'envoi est journalisé, le client pourra
+   * redemander un code.
+   */
+  static async envoyerCodeVerification(user) {
+    try {
+      const code = _generateOtp(6);
+      const codeHash = await bcrypt.hash(code, bcryptConfig.saltRounds);
+      const expiresAt = new Date(Date.now() + DUREE_CODE_VERIFICATION_MIN * 60 * 1000);
+
+      await UserOtp.destroy({ where: { userId: user.id, type: 'email_verification' } });
+      await UserOtp.create({
+        userId: user.id,
+        code: codeHash,
+        type: 'email_verification',
+        expiresAt,
+      });
+
+      await sendVerificationEmail(user.email, {
+        prenom: user.prenom,
+        code,
+        minutes: DUREE_CODE_VERIFICATION_MIN,
+      });
+      return true;
+    } catch (err) {
+      logger.error('[auth] Envoi du code de confirmation impossible', {
+        userId: user.id,
+        error: err.message,
+      });
+      return false;
+    }
+  }
+
+  /** Vérifie le code saisi et confirme l'adresse email du compte. */
+  static async verifyEmail(email, code) {
+    const emailClean = email.trim().toLowerCase();
+    const user = await User.findOne({ where: { email: emailClean } });
+    const echec = { success: false, message: 'Code incorrect ou expiré.' };
+
+    if (!user || !user.isActive) return echec;
+
+    // Déjà confirmé (double appui, lien rejoué) : rien à refaire.
+    if (user.isVerified) {
+      return {
+        success: true,
+        message: 'Adresse email déjà confirmée. Vous pouvez vous connecter.',
+      };
+    }
+
+    const otpRecord = await UserOtp.findOne({
+      where: { userId: user.id, type: 'email_verification', isUsed: false },
+      order: [['createdAt', 'DESC']],
+    });
+    if (!otpRecord || new Date() > otpRecord.expiresAt) return echec;
+
+    const valide = await bcrypt.compare(String(code).trim(), otpRecord.code);
+    if (!valide) return echec;
+
+    const t = await sequelize.transaction();
+    try {
+      await otpRecord.update({ isUsed: true }, { transaction: t });
+      await user.update({ isVerified: true }, { transaction: t });
+      await t.commit();
+    } catch (err) {
+      await t.rollback();
+      throw err;
+    }
+    _purgerCacheAuth(user.id);
+
+    return { success: true, message: 'Adresse email confirmée. Bienvenue sur Yobante Boutique !' };
+  }
+
+  /**
+   * Renvoie un code de confirmation. Réponse identique que le compte existe
+   * ou non, pour ne pas révéler les adresses inscrites.
+   */
+  static async resendVerification(email) {
+    const emailClean = email.trim().toLowerCase();
+    const user = await User.findOne({ where: { email: emailClean } });
+
+    if (user && user.isActive && !user.isVerified && user.role === 'CLIENT') {
+      await AuthService.envoyerCodeVerification(user);
+    }
+
+    return {
+      success: true,
+      message: 'Si un compte en attente de confirmation existe, un nouveau code a été envoyé.',
+    };
+  }
+
   // -------------------- MOT DE PASSE OUBLIÉ (OTP) --------------------
   static async forgotPassword(email) {
     const emailClean = email.trim().toLowerCase();
@@ -329,6 +450,10 @@ class AuthService {
 
     // Invalider le code OTP immédiatement après validation
     await otpRecord.update({ isUsed: true });
+
+    // Le code a été reçu sur cette adresse : elle est donc confirmée (utile à
+    // un client qui a perdu son code d'inscription et réinitialise son mot de passe).
+    if (!user.isVerified) await user.update({ isVerified: true });
 
     // Générer un token temporaire unique
     const resetToken = crypto.randomBytes(32).toString('hex');
@@ -407,8 +532,32 @@ class AuthService {
     const valid = await bcrypt.compare(ancienPassword, user.password);
     if (!valid) return { success: false, message: 'Ancien mot de passe incorrect' };
 
-    const hashedPassword = await bcrypt.hash(nouveauPassword, bcryptConfig.saltRounds);
-    await user.update({ password: hashedPassword, mustChangePassword: false });
+    const t = await sequelize.transaction();
+    try {
+      const hashedPassword = await bcrypt.hash(nouveauPassword, bcryptConfig.saltRounds);
+      await user.update(
+        { password: hashedPassword, mustChangePassword: false },
+        { transaction: t }
+      );
+      // Révocation des sessions ouvertes, comme le fait `changePassword`.
+      // Ce chemin-ci ne le faisait pas, et c'est précisément celui où le
+      // risque est le plus élevé : le mot de passe temporaire a été
+      // communiqué hors bande (e-mail, message) par l'administration, donc
+      // potentiellement lu par un tiers. Si ce tiers s'était connecté avant
+      // le titulaire, son refresh token restait valide 7 jours APRÈS le
+      // changement de mot de passe — le changement ne reprenait pas la main
+      // sur le compte.
+      await RefreshToken.update(
+        { revoked: true },
+        { where: { userId: user.id, revoked: false }, transaction: t }
+      );
+
+      await t.commit();
+    } catch (err) {
+      await t.rollback();
+      throw err;
+    }
+
     _purgerCacheAuth(user.id);
 
     return { success: true, message: 'Mot de passe changé avec succès' };
@@ -451,5 +600,7 @@ class AuthService {
     }
   }
 }
+
+AuthService.CODE_EMAIL_NON_VERIFIE = CODE_EMAIL_NON_VERIFIE;
 
 module.exports = AuthService;

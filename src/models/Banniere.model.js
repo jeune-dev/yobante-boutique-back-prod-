@@ -27,6 +27,23 @@ const Banniere = sequelize.define(
       allowNull: true,
       comment: 'Catégorie associée à la bannière',
     },
+    rayonId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      comment: "Rayon ouvert au toucher dans l'application (sans produits mis en avant)",
+    },
+    afficherBouton: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
+      comment: "Affiche le bouton posé sur la bannière dans l'application",
+    },
+    texteBouton: {
+      type: DataTypes.STRING(40),
+      allowNull: true,
+      defaultValue: 'Découvrir',
+      comment: 'Libellé du bouton (« Découvrir » par défaut)',
+    },
     ordre: {
       type: DataTypes.INTEGER,
       defaultValue: 0,

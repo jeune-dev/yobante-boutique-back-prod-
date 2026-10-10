@@ -231,8 +231,8 @@ class CommandeService {
     // notification en échec ne doit pas la remettre en cause.
     await NotificationService.emettre({
       userIds: commandeComplete.items.map((i) => i.produit?.vendeurId),
-      titre: 'Nouvelle commande',
-      message: `La commande ${commandeComplete.reference} contient vos produits.`,
+      titre: 'Nouvelle commande à confirmer',
+      message: `La commande ${commandeComplete.reference} contient vos produits. Confirmez s'ils sont disponibles chez vous.`,
       type: 'commande',
       donnees: { commandeId: commandeComplete.id },
     });

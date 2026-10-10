@@ -9,7 +9,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { validateAndFormatPhone } = require('../../utils/phone');
 const { Op } = require('sequelize');
-const { User, ProfilVendeur, Produit, sequelize } = require('../../models');
+const { User, ProfilVendeur, Produit, RefreshToken, sequelize } = require('../../models');
 const { bcryptConfig } = require('../../config/security');
 const { ROLES, STATUT_VENDEUR } = require('../../constants');
 const paginate = require('../../utils/paginate');
@@ -93,9 +93,14 @@ class GestionVendeurService {
     };
   }
 
+  /**
+   * Crée un compte vendeur avec le mot de passe choisi par l'administrateur.
+   * Le vendeur reçoit son identifiant et son mot de passe par email et se
+   * connecte depuis l'application mobile (le dashboard web lui est fermé).
+   */
   static async creerVendeur(data) {
     const emailClean = data.email.trim().toLowerCase();
-    const motDePasseTemporaire = GestionVendeurService._genererMotDePasse();
+    const motDePasse = data.password;
 
     const t = await sequelize.transaction();
     let user;
@@ -107,7 +112,7 @@ class GestionVendeurService {
         return { success: false, message: 'Cet email est déjà utilisé' };
       }
 
-      const hashedPassword = await bcrypt.hash(motDePasseTemporaire, bcryptConfig.saltRounds);
+      const hashedPassword = await bcrypt.hash(motDePasse, bcryptConfig.saltRounds);
 
       const phone = data.phoneCountryCode
         ? validateAndFormatPhone(data.phoneNationalNumber, data.phoneCountryCode).phoneNumber ||
@@ -126,7 +131,9 @@ class GestionVendeurService {
           // Opérationnel dès la création : plus d'attente de validation.
           // Seul un blocage explicite le désactive.
           isActive: true,
-          mustChangePassword: true,
+          // Mot de passe défini par l'administrateur : le vendeur l'utilise
+          // tel quel dans l'application, sans changement imposé.
+          mustChangePassword: false,
         },
         { transaction: t }
       );
@@ -158,14 +165,14 @@ class GestionVendeurService {
     // annuler sa création. Le mot de passe en clair n'est jamais journalisé.
     const envoi = await sendEmail({
       to: emailClean,
-      subject: 'Bienvenue sur Yobante Boutique — Vos accès vendeur',
+      subject: 'Votre compte vendeur Yobante Boutique est prêt',
       html: vendeurAccesTemplate({
         nom: data.nom,
         prenom: data.prenom,
         email: emailClean,
-        telephone: data.telephone,
-        motDePasseTemporaire,
-        lienConnexion: process.env.FRONTEND_URL || 'https://yobante.com',
+        telephone: user.telephone || data.telephone,
+        motDePasse,
+        nomBoutique: data.nomBoutique,
       }),
     });
 
@@ -181,7 +188,7 @@ class GestionVendeurService {
     return {
       success: true,
       message: envoi.success
-        ? 'Compte vendeur créé. Les identifiants ont été envoyés par email.'
+        ? "Compte vendeur créé. L'identifiant et le mot de passe ont été envoyés par email : le vendeur se connecte depuis l'application mobile."
         : "Compte vendeur créé, mais l'email des identifiants n'a pas pu être envoyé.",
       emailEnvoye: envoi.success,
       vendeur,
@@ -284,6 +291,17 @@ class GestionVendeurService {
       // Le profil boutique suit le compte : un vendeur bloqué ne passe plus le
       // middleware vendeur et n'apparaît plus comme boutique active.
       await ProfilVendeur.update({ isActive: actif }, { where: { userId: id }, transaction: t });
+
+      // Blocage : les sessions ouvertes sont révoquées, comme pour un
+      // administrateur bloqué. `AuthService.refresh` refuse déjà un compte
+      // inactif, mais les jetons restaient valides en base et redevenaient
+      // utilisables au déblocage, pendant leurs 7 jours de durée de vie.
+      if (!actif) {
+        await RefreshToken.update(
+          { revoked: true },
+          { where: { userId: id, revoked: false }, transaction: t }
+        );
+      }
       await t.commit();
     } catch (err) {
       await t.rollback();
@@ -357,8 +375,9 @@ class GestionVendeurService {
         prenom: userAfter.prenom,
         email: emailDest,
         telephone: userAfter.telephone,
-        motDePasseTemporaire,
-        lienConnexion: process.env.FRONTEND_URL || 'https://yobante.com',
+        motDePasse: motDePasseTemporaire,
+        temporaire: true,
+        nomBoutique: userAfter.profilVendeur?.nomBoutique,
       }),
     });
 

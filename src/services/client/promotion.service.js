@@ -3,6 +3,23 @@
 // ─────────────────────────────────────────────────────────────
 const { Op } = require('sequelize');
 const { Promotion, Produit, Categorie, Rayon, SousRayon, BlocPromo } = require('../../models');
+const ProduitService = require('./produit.service');
+
+// Produit d'une promotion, au format du catalogue : vendeur et boutique
+// inclus. Sans eux, les cartes de l'application n'affichent ni le nom de la
+// boutique ni sa ville.
+const PRODUIT_PROMO = () => ({
+  model: Produit,
+  as: 'produit',
+  required: true,
+  where: ProduitService.VISIBLE_AU_PUBLIC,
+  attributes: { exclude: ['prixAchat'] },
+  include: [
+    ...ProduitService.CATALOGUE_INCLUDE,
+    { model: Rayon, as: 'rayon', attributes: ['id', 'nom'] },
+    { model: SousRayon, as: 'sousRayon', attributes: ['id', 'nom'] },
+  ],
+});
 
 class PromotionClientService {
   /**
@@ -45,15 +62,8 @@ class PromotionClientService {
           { [Op.or]: [{ dateFin: null }, { dateFin: { [Op.gte]: now } }] },
         ],
       },
-      include: [
-        {
-          model: Produit,
-          as: 'produit',
-          where: { isActive: true },
-          required: true,
-          include: [{ model: Categorie, as: 'categorie', attributes: ['id', 'nom', 'slug'] }],
-        },
-      ],
+      // Produits entièrement validés uniquement, comme le reste du catalogue.
+      include: [PRODUIT_PROMO()],
       order: [['ordre', 'ASC']],
     });
 
@@ -129,14 +139,7 @@ class PromotionClientService {
           },
         ],
       },
-      include: [
-        {
-          model: Produit,
-          as: 'produit',
-          where: { isActive: true, statutValidation: 'valide' },
-          include: [{ model: Categorie, as: 'categorie', attributes: ['id', 'nom', 'slug'] }],
-        },
-      ],
+      include: [PRODUIT_PROMO()],
       order: [['ordre', 'ASC']],
     });
 
@@ -170,20 +173,14 @@ class PromotionClientService {
 
   static async getSection(section) {
     const now = new Date();
+    const periode = [{ [Op.or]: [{ dateFin: null }, { dateFin: { [Op.gte]: now } }] }];
+    // Seule la section « à venir » montre des promotions pas encore commencées.
+    if (section !== 'nos_promos_a_venir') {
+      periode.push({ [Op.or]: [{ dateDebut: null }, { dateDebut: { [Op.lte]: now } }] });
+    }
     const promotions = await Promotion.findAll({
-      where: {
-        section,
-        isActive: true,
-        [Op.or]: [{ dateFin: null }, { dateFin: { [Op.gte]: now } }],
-      },
-      include: [
-        {
-          model: Produit,
-          as: 'produit',
-          where: { isActive: true, statutValidation: 'valide' },
-          include: [{ model: Categorie, as: 'categorie', attributes: ['id', 'nom', 'slug'] }],
-        },
-      ],
+      where: { section, isActive: true, [Op.and]: periode },
+      include: [PRODUIT_PROMO()],
       order: [['ordre', 'ASC']],
     });
 

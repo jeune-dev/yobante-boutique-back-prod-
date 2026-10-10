@@ -94,9 +94,10 @@ describe('POST /api/v1/admin/vendeurs — création', () => {
     telephone: '0761050794',
     nomBoutique: 'Chez Lala',
     adresseBoutique: 'Dakar, Plateau',
+    password: 'Boutique2026',
   };
 
-  it('crée un vendeur ACTIF, hashe le mot de passe et l’envoie par email', async () => {
+  it('crée un vendeur ACTIF avec le mot de passe choisi, et l’envoie par email', async () => {
     adminAuthentifie();
     // 1er findOne : unicité de l'email (aucun compte existant)
     User.findOne.mockResolvedValueOnce(null);
@@ -119,9 +120,11 @@ describe('POST /api/v1/admin/vendeurs — création', () => {
     const userCree = User.create.mock.calls[0][0];
     expect(userCree.role).toBe('VENDEUR');
     expect(userCree.isActive).toBe(true); // actif immédiatement
-    expect(userCree.mustChangePassword).toBe(true);
+    // Mot de passe choisi par l'administrateur : pas de changement imposé.
+    expect(userCree.mustChangePassword).toBe(false);
     expect(userCree.email).toBe('lala@example.com'); // normalisé
     expect(userCree.password).toMatch(/^\$2[aby]\$/); // hash bcrypt, jamais en clair
+    expect(userCree.password).not.toContain('Boutique2026');
 
     const profilCree = ProfilVendeur.create.mock.calls[0][0];
     expect(profilCree.nomBoutique).toBe('Chez Lala');
@@ -132,7 +135,8 @@ describe('POST /api/v1/admin/vendeurs — création', () => {
     const email = sendEmail.mock.calls[0][0];
     expect(email.to).toBe('lala@example.com');
     expect(email.html).toContain('lala@example.com');
-    expect(email.html).toMatch(/[A-Za-z0-9]{12}/); // le mot de passe temporaire y figure
+    expect(email.html).toContain('Boutique2026'); // identifiant + mot de passe transmis
+    expect(email.html).toMatch(/application mobile/i); // connexion depuis l'app, pas le dashboard
 
     // ── Réponse HTTP ──
     expect(res.body.data.vendeur.statut).toBe('actif');
@@ -155,24 +159,21 @@ describe('POST /api/v1/admin/vendeurs — création', () => {
     expect(User.create).not.toHaveBeenCalled();
   });
 
-  it('ignore un mot de passe fourni par le client : il est toujours généré côté serveur', async () => {
+  it.each([
+    ['absent', undefined],
+    ['trop court', 'Ab1'],
+    ['sans majuscule', 'boutique2026'],
+    ['sans chiffre', 'BoutiqueYobante'],
+  ])('refuse un mot de passe %s sans toucher à la base', async (_cas, password) => {
     adminAuthentifie();
-    User.findOne.mockResolvedValueOnce(null);
-    User.create.mockImplementation(async (donnees) => ({
-      ...donnees,
-      id: ID_VENDEUR,
-      toJSON: () => ({ ...donnees, id: ID_VENDEUR }),
-    }));
-    ProfilVendeur.create.mockImplementation(async (donnees) => profilFactice(donnees));
 
-    await request(app)
+    const res = await request(app)
       .post('/api/v1/admin/vendeurs')
       .set('Authorization', `Bearer ${tokenAdmin()}`)
-      .send({ ...corpsValide, password: 'motdepasse-choisi' });
+      .send({ ...corpsValide, password });
 
-    const userCree = User.create.mock.calls[0][0];
-    expect(userCree.password).not.toContain('motdepasse-choisi');
-    expect(userCree.password).toMatch(/^\$2[aby]\$/);
+    expect(res.status).toBe(400);
+    expect(User.create).not.toHaveBeenCalled();
   });
 
   it('rejette un email déjà utilisé', async () => {

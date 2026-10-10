@@ -17,7 +17,7 @@
   },
   "reponse": {
     "success": true,
-    "message": "Inscription réussie",
+    "message": "Compte créé",
     "data": {
       "user": {
         "id": "10000000-0000-4000-8000-000000000001",
@@ -27,11 +27,12 @@
         "telephone": "+221771234567",
         "role": "CLIENT",
         "isActive": true,
-        "isVerified": true,
+        "isVerified": false,
         "avatar": null
       },
-      "messageTitle": "Inscription réussie",
-      "messageDescription": "Veuillez vous connecter pour accéder à votre dashboard."
+      "messageTitle": "Compte créé",
+      "messageDescription": "Un code de confirmation à 6 chiffres a été envoyé à fatou@exemple.com.",
+      "verificationRequise": true
     }
   }
 }

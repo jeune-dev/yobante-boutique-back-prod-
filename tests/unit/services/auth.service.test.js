@@ -46,6 +46,7 @@ jest.mock('../../../src/models', () => ({
 
 jest.mock('../../../src/utils/mailer');
 
+const mailer = require('../../../src/utils/mailer');
 const AuthService = require('../../../src/services/auth.service');
 
 describe('AuthService', () => {
@@ -67,7 +68,7 @@ describe('AuthService', () => {
         id: 'generated-id',
         password: hashedPassword,
         role: 'CLIENT',
-        isVerified: true
+        isVerified: false
       });
 
       bcrypt.hash.mockResolvedValue(hashedPassword);
@@ -75,12 +76,17 @@ describe('AuthService', () => {
       const result = await AuthService.register(registerData);
 
       expect(result.success).toBe(true);
-      expect(result.message).toBe('Inscription réussie');
-      // Les textes du message de succès viennent du backend, affichés tels
-      // quels par le mobile.
-      expect(result.messageDescription).toBe(
-        'Veuillez vous connecter pour accéder à votre dashboard.'
+      expect(result.message).toBe('Compte créé');
+      // Le compte est créé non confirmé, et un code est envoyé par email.
+      expect(mockUser.create).toHaveBeenCalledWith(
+        expect.objectContaining({ isVerified: false }),
+        expect.anything()
       );
+      expect(result.verificationRequise).toBe(true);
+      expect(mockUserOtp.create).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'email_verification' })
+      );
+      expect(mailer.sendVerificationEmail).toHaveBeenCalled();
       expect(result.user).toBeDefined();
       // Pas d'auto-connexion : aucun token n'est renvoyé à l'inscription.
       expect(result.token).toBeUndefined();
@@ -282,5 +288,181 @@ describe('AuthService', () => {
 
       expect(result.success).toBe(false);
     });
+
+    it('devrait révoquer les refresh tokens existants', async () => {
+      const userId = userFixture.validUser.id;
+
+      mockSequelize.transaction.mockResolvedValue(mockTransaction);
+      mockUser.findByPk.mockResolvedValue({
+        ...userFixture.validUser,
+        update: jest.fn().mockResolvedValue(true),
+      });
+      bcrypt.compare.mockResolvedValue(true);
+      bcrypt.hash.mockResolvedValue('hashed-new-password');
+
+      await AuthService.changePassword(userId, 'old', 'newPassword456');
+
+      expect(mockRefreshToken.update).toHaveBeenCalledWith(
+        { revoked: true },
+        expect.objectContaining({ where: { userId, revoked: false } })
+      );
+    });
+  });
+
+  describe('changerPremierMotDePasse', () => {
+    const preparerCompteTemporaire = () => {
+      const update = jest.fn().mockResolvedValue(true);
+      mockSequelize.transaction.mockResolvedValue(mockTransaction);
+      mockUser.findByPk.mockResolvedValue({
+        ...userFixture.validUser,
+        mustChangePassword: true,
+        update,
+      });
+      bcrypt.compare.mockResolvedValue(true);
+      bcrypt.hash.mockResolvedValue('hashed-new-password');
+      return update;
+    };
+
+    it('remplace le mot de passe temporaire et lève le blocage', async () => {
+      const update = preparerCompteTemporaire();
+
+      const result = await AuthService.changerPremierMotDePasse(userFixture.validUser.id, {
+        ancienPassword: 'Temporaire1',
+        nouveauPassword: 'NouveauMdp1',
+        confirmPassword: 'NouveauMdp1',
+      });
+
+      expect(result.success).toBe(true);
+      expect(update).toHaveBeenCalledWith(
+        expect.objectContaining({ mustChangePassword: false }),
+        expect.objectContaining({ transaction: mockTransaction })
+      );
+      expect(mockTransaction.commit).toHaveBeenCalled();
+    });
+
+    it('révoque les sessions ouvertes avec le mot de passe temporaire', async () => {
+      // Le mot de passe temporaire est transmis hors bande par
+      // l'administration : si un tiers l'a lu et s'est connecté, son refresh
+      // token restait valide 7 jours après le changement. Ce chemin ne
+      // révoquait rien, contrairement à `changePassword`.
+      preparerCompteTemporaire();
+
+      await AuthService.changerPremierMotDePasse(userFixture.validUser.id, {
+        ancienPassword: 'Temporaire1',
+        nouveauPassword: 'NouveauMdp1',
+        confirmPassword: 'NouveauMdp1',
+      });
+
+      expect(mockRefreshToken.update).toHaveBeenCalledWith(
+        { revoked: true },
+        expect.objectContaining({
+          where: { userId: userFixture.validUser.id, revoked: false },
+          transaction: mockTransaction,
+        })
+      );
+    });
+
+    it('refuse si la confirmation ne correspond pas, sans rien révoquer', async () => {
+      preparerCompteTemporaire();
+
+      const result = await AuthService.changerPremierMotDePasse(userFixture.validUser.id, {
+        ancienPassword: 'Temporaire1',
+        nouveauPassword: 'NouveauMdp1',
+        confirmPassword: 'Different1',
+      });
+
+      expect(result.success).toBe(false);
+      expect(mockRefreshToken.update).not.toHaveBeenCalled();
+    });
+
+    it('refuse un ancien mot de passe incorrect, sans rien révoquer', async () => {
+      preparerCompteTemporaire();
+      bcrypt.compare.mockResolvedValue(false);
+
+      const result = await AuthService.changerPremierMotDePasse(userFixture.validUser.id, {
+        ancienPassword: 'faux',
+        nouveauPassword: 'NouveauMdp1',
+        confirmPassword: 'NouveauMdp1',
+      });
+
+      expect(result.success).toBe(false);
+      expect(mockRefreshToken.update).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe('AuthService — confirmation de l\'email', () => {
+  const client = (champs = {}) => ({
+    ...userFixture.validUser,
+    isVerified: false,
+    update: jest.fn().mockResolvedValue(undefined),
+    ...champs,
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockSequelize.transaction.mockResolvedValue(mockTransaction);
+  });
+
+  it('login : refuse un client non confirmé avec le code EMAIL_NON_VERIFIE', async () => {
+    mockUser.findOne.mockResolvedValue(client());
+    bcrypt.compare.mockResolvedValue(true);
+
+    const result = await AuthService.login({ identifiant: 'john.doe@example.com', password: 'x' });
+
+    expect(result.success).toBe(false);
+    expect(result.code).toBe('EMAIL_NON_VERIFIE');
+    expect(result.email).toBe('john.doe@example.com');
+    expect(mockRefreshToken.create).not.toHaveBeenCalled();
+  });
+
+  it('login : mauvais mot de passe sur un compte non confirmé → message générique', async () => {
+    mockUser.findOne.mockResolvedValue(client());
+    bcrypt.compare.mockResolvedValue(false);
+
+    const result = await AuthService.login({ identifiant: 'john.doe@example.com', password: 'x' });
+
+    expect(result.code).toBeUndefined();
+    expect(result.error).toBe('Identifiant ou mot de passe incorrect');
+  });
+
+  it('verifyEmail : bon code → compte confirmé, code consommé', async () => {
+    const user = client();
+    const otp = { code: 'hash', expiresAt: new Date(Date.now() + 60000), update: jest.fn() };
+    mockUser.findOne.mockResolvedValue(user);
+    mockUserOtp.findOne.mockResolvedValue(otp);
+    bcrypt.compare.mockResolvedValue(true);
+
+    const result = await AuthService.verifyEmail('John.Doe@example.com ', '123456');
+
+    expect(result.success).toBe(true);
+    expect(otp.update).toHaveBeenCalledWith({ isUsed: true }, expect.anything());
+    expect(user.update).toHaveBeenCalledWith({ isVerified: true }, expect.anything());
+    expect(mockTransaction.commit).toHaveBeenCalled();
+  });
+
+  it('verifyEmail : code faux ou expiré → échec générique', async () => {
+    mockUser.findOne.mockResolvedValue(client());
+    mockUserOtp.findOne.mockResolvedValue({ code: 'hash', expiresAt: new Date(Date.now() - 1000) });
+
+    const expire = await AuthService.verifyEmail('john.doe@example.com', '123456');
+    expect(expire).toEqual({ success: false, message: 'Code incorrect ou expiré.' });
+
+    mockUserOtp.findOne.mockResolvedValue({ code: 'hash', expiresAt: new Date(Date.now() + 60000) });
+    bcrypt.compare.mockResolvedValue(false);
+    const faux = await AuthService.verifyEmail('john.doe@example.com', '000000');
+    expect(faux.success).toBe(false);
+  });
+
+  it('resendVerification : réponse identique, code envoyé seulement au client non confirmé', async () => {
+    bcrypt.hash.mockResolvedValue('hash');
+    mockUser.findOne.mockResolvedValue(null);
+    const inconnu = await AuthService.resendVerification('x@y.z');
+    expect(mailer.sendVerificationEmail).not.toHaveBeenCalled();
+
+    mockUser.findOne.mockResolvedValue(client());
+    const attente = await AuthService.resendVerification('john.doe@example.com');
+    expect(mailer.sendVerificationEmail).toHaveBeenCalledTimes(1);
+    expect(attente.message).toBe(inconnu.message);
   });
 });

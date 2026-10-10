@@ -5,6 +5,7 @@ const {
   authLimiter,
   registerLimiter,
   forgotPasswordLimiter,
+  otpEmailLimiter,
   mutationLimiter,
 } = require('../middlewares/rateLimit.middleware');
 const validate = require('../middlewares/validate.middleware');
@@ -16,6 +17,8 @@ const {
   forgotPasswordSchema,
   resetPasswordSchema,
   verifyResetCodeSchema,
+  verifyEmailSchema,
+  resendVerificationSchema,
   changePasswordSchema,
   changerPremierMdpSchema,
 } = require('../validations/auth.validation');
@@ -24,6 +27,14 @@ router.post('/register', registerLimiter, validate(registerSchema), ctrl.registe
 router.post('/login', authLimiter, validate(loginSchema), ctrl.login);
 // Dashboard web : connexion réservée aux administrateurs (403 pour les autres rôles).
 router.post('/admin/login', authLimiter, validate(loginSchema), ctrl.loginAdmin);
+// Confirmation de l'adresse email après l'inscription (code à 6 chiffres)
+router.post('/verify-email', authLimiter, validate(verifyEmailSchema), ctrl.verifyEmail);
+router.post(
+  '/resend-verification',
+  otpEmailLimiter,
+  validate(resendVerificationSchema),
+  ctrl.resendVerification
+);
 router.post('/refresh', authLimiter, validate(refreshSchema), ctrl.refresh);
 router.post('/logout', validate(logoutSchema), ctrl.logout);
 

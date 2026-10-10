@@ -9,6 +9,7 @@ const {
   User,
   Adresse,
   Paiement,
+  AcceptationCommande,
   sequelize,
 } = require('../../models');
 const paginate = require('../../utils/paginate');
@@ -97,11 +98,74 @@ class GestionCommandeService {
       distinct: true,
     });
 
+    // Nombre de vendeurs ayant déclaré leurs produits indisponibles : la
+    // liste le signale sans ouvrir chaque commande.
+    const refus = rows.length
+      ? await AcceptationCommande.findAll({
+          where: { statut: 'refusee', commandeId: { [Op.in]: rows.map((c) => c.id) } },
+          attributes: ['commandeId', [sequelize.fn('COUNT', sequelize.col('id')), 'total']],
+          group: ['commandeId'],
+          raw: true,
+        })
+      : [];
+    const refusPar = new Map(refus.map((r) => [r.commandeId, Number(r.total) || 0]));
+
     return {
       success: true,
-      commandes: rows,
+      commandes: rows.map((c) => ({ ...c.toJSON(), refusVendeurs: refusPar.get(c.id) ?? 0 })),
       pagination: { total: count, totalPages: Math.ceil(count / l), page: p, limit: l },
     };
+  }
+
+  /**
+   * Réponse de chaque vendeur concerné par la commande : produits disponibles
+   * (acceptee), indisponibles avec le motif (refusee), ou pas encore répondu.
+   */
+  static async getDisponibilitesVendeurs(commandeId) {
+    const lignes = await CommandeItem.findAll({
+      where: { commandeId },
+      attributes: ['quantite'],
+      include: [{ model: Produit, as: 'produit', attributes: ['id', 'nom', 'vendeurId'] }],
+    });
+    const produitsPar = new Map();
+    for (const l of lignes) {
+      const vendeurId = l.produit?.vendeurId;
+      if (!vendeurId) continue;
+      if (!produitsPar.has(vendeurId)) produitsPar.set(vendeurId, []);
+      produitsPar.get(vendeurId).push(`${l.quantite} × ${l.produit.nom}`);
+    }
+    const ids = [...produitsPar.keys()];
+    if (!ids.length) return [];
+
+    const [vendeurs, decisions] = await Promise.all([
+      User.findAll({
+        where: { id: { [Op.in]: ids } },
+        attributes: ['id', 'nom', 'prenom', 'telephone'],
+        include: [{ association: 'profilVendeur', attributes: ['nomBoutique'] }],
+      }),
+      AcceptationCommande.findAll({
+        where: { commandeId, vendeurId: { [Op.in]: ids } },
+        attributes: ['vendeurId', 'statut', 'motifRefus', 'decideLe'],
+        raw: true,
+      }),
+    ]);
+    const vendeurPar = new Map(vendeurs.map((v) => [v.id, v]));
+    const decisionPar = new Map(decisions.map((d) => [d.vendeurId, d]));
+
+    return ids.map((vendeurId) => {
+      const v = vendeurPar.get(vendeurId);
+      const d = decisionPar.get(vendeurId);
+      return {
+        vendeurId,
+        vendeur: [v?.prenom, v?.nom].filter(Boolean).join(' ') || null,
+        boutique: v?.profilVendeur?.nomBoutique ?? null,
+        telephone: v?.telephone ?? null,
+        produits: produitsPar.get(vendeurId),
+        statut: d?.statut ?? 'en_attente',
+        motifRefus: d?.motifRefus ?? null,
+        decideLe: d?.decideLe ?? null,
+      };
+    });
   }
 
   static async getCommandeById(id) {

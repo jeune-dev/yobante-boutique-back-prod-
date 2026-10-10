@@ -1,14 +1,36 @@
 // ─────────────────────────────────────────────────────────────
 // services/admin/banniere.service.js
 // ─────────────────────────────────────────────────────────────
-const { Banniere, Categorie, Produit, BanniereProduit } = require('../../models');
+const { Banniere, Categorie, Produit, BanniereProduit, Rayon } = require('../../models');
 const { uploadImage, deleteImage } = require('../r2.service');
+
+/**
+ * Champs modifiables d'une bannière, normalisés depuis un formulaire
+ * multipart (où tout arrive en texte) : booléen réel, rayon vide → aucun,
+ * libellé du bouton borné à 40 caractères.
+ */
+function champsBanniere(data = {}) {
+  const champs = {};
+  if (data.titre !== undefined) champs.titre = String(data.titre).trim() || null;
+  if (data.lien !== undefined) champs.lien = String(data.lien).trim() || null;
+  if (data.ordre !== undefined && data.ordre !== '') champs.ordre = Number(data.ordre) || 0;
+  if (data.categorieId !== undefined) champs.categorieId = data.categorieId || null;
+  if (data.rayonId !== undefined) champs.rayonId = data.rayonId || null;
+  if (data.afficherBouton !== undefined) {
+    champs.afficherBouton = data.afficherBouton === true || data.afficherBouton === 'true';
+  }
+  if (data.texteBouton !== undefined) {
+    champs.texteBouton = String(data.texteBouton).trim().slice(0, 40) || 'Découvrir';
+  }
+  return champs;
+}
 
 class BanniereService {
   static async getAll() {
     const bannieres = await Banniere.findAll({
       include: [
         { model: Categorie, as: 'categorie', attributes: ['id', 'nom', 'slug'] },
+        { model: Rayon, as: 'rayon', attributes: ['id', 'nom'] },
         {
           model: Produit,
           as: 'produits',
@@ -28,7 +50,7 @@ class BanniereService {
     if (!file) return { success: false, message: 'Image requise' };
 
     const imageUrl = await uploadImage(file.buffer, file.originalname, 'bannieres');
-    const banniere = await Banniere.create({ ...data, image: imageUrl });
+    const banniere = await Banniere.create({ ...champsBanniere(data), image: imageUrl });
     return { success: true, message: 'Bannière créée avec succès', banniere };
   }
 
@@ -36,7 +58,7 @@ class BanniereService {
     const banniere = await Banniere.findByPk(id);
     if (!banniere) return { success: false, message: 'Bannière introuvable' };
 
-    const updates = { ...data };
+    const updates = champsBanniere(data);
     if (file) {
       await deleteImage(banniere.image);
       updates.image = await uploadImage(file.buffer, file.originalname, 'bannieres');

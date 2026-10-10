@@ -25,7 +25,15 @@ exports.exportCsv = asyncHandler(async (req, res) => {
 exports.getOne = asyncHandler(async (req, res) => {
   const result = await GestionCommandeService.getCommandeById(req.params.id);
   if (!result.success) throw new NotFoundError(result.message);
-  return ok(res, { commande: result.commande }, 'Commande récupérée');
+  // Réponse des vendeurs (produits disponibles ou non, avec le motif).
+  const disponibilitesVendeurs = await GestionCommandeService.getDisponibilitesVendeurs(
+    req.params.id
+  );
+  return ok(
+    res,
+    { commande: { ...result.commande.toJSON(), disponibilitesVendeurs } },
+    'Commande récupérée'
+  );
 });
 
 exports.annuler = asyncHandler(async (req, res) => {

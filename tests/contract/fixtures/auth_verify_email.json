@@ -1,0 +1,19 @@
+{
+  "requete": {
+    "methode": "POST",
+    "chemin": "/auth/verify-email",
+    "query": {},
+    "corps": {
+      "email": "fatou@exemple.com",
+      "code": "123456"
+    },
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Adresse email déjà confirmée. Vous pouvez vous connecter.",
+    "data": {
+      "verifie": true
+    }
+  }
+}

@@ -25,6 +25,10 @@ const motDePasseChange = require('./middlewares/motDePasseChange.middleware');
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
 
+// Documentation OpenAPI : hors production uniquement (voir le montage plus
+// bas). Déclaré ici car la route `/` l'annonce avant le point de montage.
+const docsActivees = !isProd || process.env.ENABLE_API_DOCS === 'true';
+
 app.set('trust proxy', 1);
 
 // ── HTTP Request Logging (Morgan) ───────────────────────────────────────────
@@ -121,9 +125,14 @@ app.use((req, res, next) => {
 });
 
 app.get('/', (_req, res) => {
-  res
-    .status(200)
-    .json({ name: 'Yobante Boutique API', status: 'ok', docs: '/api-docs', api: '/api/v1' });
+  // `docs` n'est annoncé que si la documentation est réellement servie :
+  // inutile de pointer vers un 404 en production.
+  res.status(200).json({
+    name: 'Yobante Boutique API',
+    status: 'ok',
+    api: '/api/v1',
+    ...(docsActivees ? { docs: '/api-docs' } : {}),
+  });
 });
 
 app.get('/health', (_req, res) => {
@@ -134,7 +143,19 @@ app.get('/health', (_req, res) => {
   });
 });
 
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openapiSpec));
+// ── Documentation OpenAPI ────────────────────────────────────────────────
+// Servie hors production uniquement. Exposée publiquement, elle décrit à un
+// attaquant toute la surface d'API — chemins admin, schémas de corps de
+// requête, noms de champs — ce qui dispense de toute phase de découverte.
+// `ENABLE_API_DOCS=true` permet de la rouvrir délibérément (staging), mais
+// ce n'est jamais le défaut en production.
+if (docsActivees) {
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openapiSpec));
+} else {
+  app.use('/api-docs', (_req, res) => {
+    res.status(404).json({ success: false, message: 'Route introuvable', data: null });
+  });
+}
 
 // ── Routes d'authentification (strict rate limiting) ──────────────────────
 app.use('/api/v1/auth', require('./routes/auth.routes'));
@@ -142,10 +163,18 @@ app.use('/api/v1/auth', require('./routes/auth.routes'));
 // ── Routes admin (protégées + rate limiting) ──────────────────────────────
 // `motDePasseChange` suit `auth` partout : un compte encore sur son mot de
 // passe temporaire est refuse cote serveur, quelle que soit l'interface.
+//
+// ORDRE : `auth` AVANT le limiteur. `adminLimiter` est calibré par
+// utilisateur (`keyGenerator: req.user?.id || req.ip`), mais placé avant
+// `auth` il ne voyait jamais `req.user` et retombait toujours sur l'IP : les
+// 200 requêtes/15 min étaient partagées par TOUS les administrateurs d'un
+// même bureau (une seule IP publique derrière le NAT). Le dashboard émettant
+// plusieurs requêtes par page, deux ou trois administrateurs simultanés
+// suffisaient à déclencher des 429 en usage normal.
 app.use(
   '/api/v1/admin',
-  adminLimiter,
   auth,
+  adminLimiter,
   motDePasseChange,
   adminMiddleware,
   require('./routes/admin/index')
@@ -154,8 +183,8 @@ app.use(
 // ── Routes vendeur (authentifiées + rate limiting) ────────────────────────
 app.use(
   '/api/v1/vendeur',
-  authenticatedLimiter,
   auth,
+  authenticatedLimiter,
   motDePasseChange,
   require('./routes/vendeur/index')
 );
@@ -165,15 +194,15 @@ app.use('/api/v1/produits', require('./routes/client/produit.route'));
 app.use('/api/v1/categories', require('./routes/client/categorie.route'));
 app.use(
   '/api/v1/panier',
-  authenticatedLimiter,
   auth,
+  authenticatedLimiter,
   motDePasseChange,
   require('./routes/client/panier.route')
 );
 app.use(
   '/api/v1/commandes',
-  authenticatedLimiter,
   auth,
+  authenticatedLimiter,
   motDePasseChange,
   require('./routes/client/commande.route')
 );
@@ -184,30 +213,30 @@ app.use(
 app.use('/api/v1/paiements', authenticatedLimiter, require('./routes/client/paiement.route'));
 app.use(
   '/api/v1/notifications',
-  authenticatedLimiter,
   auth,
+  authenticatedLimiter,
   motDePasseChange,
   require('./routes/client/notification.route')
 );
 app.use(
   '/api/v1/device-token',
-  authenticatedLimiter,
   auth,
+  authenticatedLimiter,
   motDePasseChange,
   require('./routes/client/deviceToken.route')
 );
 app.use('/api/v1/avis', require('./routes/client/avis.route'));
 app.use(
   '/api/v1/signalements',
-  mutationLimiter,
   auth,
+  mutationLimiter,
   motDePasseChange,
   require('./routes/client/signalement.route')
 );
 app.use(
   '/api/v1/profile',
-  mutationLimiter,
   auth,
+  mutationLimiter,
   motDePasseChange,
   require('./routes/client/profil.route')
 );
@@ -216,8 +245,8 @@ app.use('/api/v1/promotions', require('./routes/client/promotion.route'));
 app.use('/api/v1/frais-livraisons', require('./routes/client/frais-livraison.route'));
 app.use(
   '/api/v1/favoris',
-  authenticatedLimiter,
   auth,
+  authenticatedLimiter,
   motDePasseChange,
   require('./routes/client/favori.route')
 );
@@ -226,8 +255,8 @@ app.use('/api/v1/rayons', require('./routes/client/rayon.route'));
 app.use('/api/v1/acheteurs', require('./routes/client/acheteur.route'));
 app.use(
   '/api/v1/messages',
-  authenticatedLimiter,
   auth,
+  authenticatedLimiter,
   motDePasseChange,
   require('./routes/client/message.route')
 );

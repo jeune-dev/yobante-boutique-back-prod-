@@ -185,4 +185,8 @@ class ProduitService {
   }
 }
 
+// Partagés avec les autres services du catalogue (bannières…).
+ProduitService.CATALOGUE_INCLUDE = CATALOGUE_INCLUDE;
+ProduitService.VISIBLE_AU_PUBLIC = VISIBLE_AU_PUBLIC;
+
 module.exports = ProduitService;

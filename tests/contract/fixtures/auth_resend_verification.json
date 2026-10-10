@@ -1,0 +1,16 @@
+{
+  "requete": {
+    "methode": "POST",
+    "chemin": "/auth/resend-verification",
+    "query": {},
+    "corps": {
+      "email": "fatou@exemple.com"
+    },
+    "champs": null
+  },
+  "reponse": {
+    "success": true,
+    "message": "Si un compte en attente de confirmation existe, un nouveau code a été envoyé.",
+    "data": {}
+  }
+}

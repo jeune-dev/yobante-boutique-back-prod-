@@ -214,7 +214,7 @@ decrire('Toutes les API — PostgreSQL réel', () => {
 
     it('vendeurs : création', async () => {
       const res = await admin('post', '/vendeurs', {
-        nom: 'Fall', prenom: 'Ibou', email: 'ibou@yobante-test.sn', nomBoutique: 'Chez Ibou', telephone: '+221771112233',
+        nom: 'Fall', prenom: 'Ibou', email: 'ibou@yobante-test.sn', nomBoutique: 'Chez Ibou', telephone: '+221771112233', password: 'ChezIbou2026',
       });
       expect(res.status).toBe(201);
     });

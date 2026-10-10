@@ -12,6 +12,12 @@ const paginate = require('../../utils/paginate');
 const { round2 } = require('../../utils/money');
 const { STATUT_COMMANDE, ROLES } = require('../../constants');
 const NotificationService = require('../notification');
+const { sendMail } = require('../../utils/mailer');
+const logger = require('../../config/logger');
+const refusVendeurTemplate = require('../../templates/mail/refusVendeur.template');
+
+const lienCommandeAdmin = (id) =>
+  `${String(process.env.ADMIN_URL || 'https://admin.yobante-boutique.com').replace(/\/+$/, '')}/boutique/commandes/${id}`;
 
 // Un vendeur décide tant que la commande n'est pas engagée en logistique :
 // au-delà, les articles sont déjà préparés ou partis.
@@ -106,11 +112,34 @@ class VendeurCommandeService {
         })
       : [];
 
+    // Décision du vendeur sur chaque commande de la page : la liste doit
+    // montrer ce qui reste à confirmer, sans ouvrir chaque commande.
+    const decisions = rows.length
+      ? await AcceptationCommande.findAll({
+          where: { vendeurId, commandeId: { [Op.in]: rows.map((c) => c.id) } },
+          attributes: ['commandeId', 'statut', 'motifRefus', 'decideLe'],
+          raw: true,
+        })
+      : [];
+    const decisionPar = new Map(decisions.map((d) => [d.commandeId, d]));
+
     const commandes = rows.map((c) => {
       const json = c.toJSON();
       const montantVendeur = round2(json.items.reduce((sum, i) => sum + Number(i.sousTotal), 0));
       delete json.montantTotal;
-      return { ...json, montantVendeur };
+      const decision = decisionPar.get(json.id);
+      return {
+        ...json,
+        montantVendeur,
+        acceptation: decision
+          ? {
+              statut: decision.statut,
+              motifRefus: decision.motifRefus,
+              decideLe: decision.decideLe,
+            }
+          : null,
+        decisionPossible: !decision && STATUTS_DECIDABLES.includes(json.statut),
+      };
     });
 
     return {
@@ -225,13 +254,7 @@ class VendeurCommandeService {
     // L'administration doit voir passer un refus sans attendre de consulter
     // un tableau : c'est elle qui devra réattribuer ou annuler.
     if (statut === 'refusee') {
-      await NotificationService.emettre({
-        userIds: await VendeurCommandeService.#idsAdministrateurs(),
-        titre: 'Commande refusée par un vendeur',
-        message: `La commande ${vue.commande.reference} a été refusée. Motif : ${motif.trim()}`,
-        type: 'commande_refusee_vendeur',
-        donnees: { commandeId, vendeurId },
-      });
+      await VendeurCommandeService.#alerterAdministrateurs(vendeurId, vue.commande, motif.trim());
     }
 
     return {
@@ -241,14 +264,62 @@ class VendeurCommandeService {
     };
   }
 
-  /** Administrateurs actifs, destinataires des alertes de refus. */
-  static async #idsAdministrateurs() {
-    const admins = await User.findAll({
-      where: { role: ROLES.ADMIN, isActive: true },
-      attributes: ['id'],
-      raw: true,
-    });
-    return admins.map((a) => a.id);
+  /**
+   * Produits indisponibles chez un vendeur : l'administration est prévenue
+   * par une notification enregistrée ET par email — le dashboard n'affiche
+   * pas de cloche, l'email est donc l'alerte qui la touche réellement.
+   * « Au mieux » : un échec d'envoi n'annule pas la décision du vendeur.
+   */
+  static async #alerterAdministrateurs(vendeurId, commande, motif) {
+    try {
+      const [admins, vendeur] = await Promise.all([
+        User.findAll({
+          where: { role: ROLES.ADMIN, isActive: true },
+          attributes: ['id', 'email'],
+          raw: true,
+        }),
+        User.findByPk(vendeurId, {
+          attributes: ['nom', 'prenom', 'telephone'],
+          include: [{ association: 'profilVendeur', attributes: ['nomBoutique'] }],
+        }),
+      ]);
+      const nomVendeur = [vendeur?.prenom, vendeur?.nom].filter(Boolean).join(' ') || 'Un vendeur';
+      const boutique = vendeur?.profilVendeur?.nomBoutique || null;
+      const produits = (commande.items || []).map(
+        (i) => `${i.quantite} × ${i.produit?.nom ?? 'Produit'}`
+      );
+
+      await NotificationService.emettre({
+        userIds: admins.map((a) => a.id),
+        titre: 'Produit indisponible chez un vendeur',
+        message: `Commande ${commande.reference} — ${boutique || nomVendeur} : ${motif}`,
+        type: 'commande_refusee_vendeur',
+        donnees: { commandeId: commande.id, vendeurId },
+      });
+
+      const html = refusVendeurTemplate({
+        reference: commande.reference,
+        vendeur: nomVendeur,
+        boutique,
+        telephone: vendeur?.telephone,
+        produits,
+        motif,
+        lien: lienCommandeAdmin(commande.id),
+      });
+      await Promise.all(
+        admins
+          .filter((a) => a.email)
+          .map((a) =>
+            sendMail({
+              to: a.email,
+              subject: `Produit indisponible — commande ${commande.reference}`,
+              html,
+            })
+          )
+      );
+    } catch (err) {
+      logger.error('Alerte de refus vendeur non envoyée', { error: err.message, vendeurId });
+    }
   }
 
   /**

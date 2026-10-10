@@ -80,7 +80,10 @@ describe('POST /api/v1/auth/admin/login', () => {
 
     expect(res.status).toBe(403);
     expect(res.body.success).toBe(false);
-    expect(res.body.message).toMatch(/réservé aux administrateurs/i);
+    // Le vendeur est guidé vers l'application mobile ; le client voit l'accès réservé.
+    expect(res.body.message).toMatch(
+      role === 'VENDEUR' ? /application mobile/i : /réservé aux administrateurs/i
+    );
     expect(res.body.data).toBeNull(); // enveloppe uniforme : data:null en erreur
   });
 
