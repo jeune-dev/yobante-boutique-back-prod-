@@ -54,6 +54,12 @@ const User = sequelize.define(
       type: DataTypes.BOOLEAN,
       defaultValue: false,
     },
+    // Compte supprimé par l'administration : anonymisé et fermé, conservé
+    // pour l'historique des commandes (voir SuppressionCompteService).
+    supprimeLe: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
     createdAt: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,

@@ -70,9 +70,13 @@ class GestionUserService {
     );
   }
 
-  static async listerClients({ page, limit, search } = {}) {
+  static async listerClients({ page, limit, search, isActive } = {}) {
     const { page: p, limit: l, offset } = paginate(page, limit);
-    const where = { role: ROLES.CLIENT };
+    // Les comptes supprimés (anonymisés) n'apparaissent plus.
+    const where = { role: ROLES.CLIENT, supprimeLe: null };
+    // Filtre « Actifs / Bloqués » de l'écran Clients.
+    if (isActive === true || isActive === 'true') where.isActive = true;
+    else if (isActive === false || isActive === 'false') where.isActive = false;
     if (search) {
       where[Op.or] = [
         { nom: { [Op.iLike]: `%${search}%` } },
@@ -100,13 +104,13 @@ class GestionUserService {
   }
 
   static async nombreClients() {
-    const total = await User.count({ where: { role: ROLES.CLIENT } });
+    const total = await User.count({ where: { role: ROLES.CLIENT, supprimeLe: null } });
     return { success: true, message: 'Nombre total de clients', totalClients: total };
   }
 
   static async getClientById(id) {
     const user = await User.findOne({
-      where: { id, role: ROLES.CLIENT },
+      where: { id, role: ROLES.CLIENT, supprimeLe: null },
       attributes: { exclude: ['password'] },
     });
     if (!user) return { success: false, message: 'Client introuvable' };
@@ -254,7 +258,7 @@ class GestionUserService {
       let hasMore = true;
       while (hasMore) {
         const clients = await User.findAll({
-          where: { role: ROLES.CLIENT },
+          where: { role: ROLES.CLIENT, supprimeLe: null },
           attributes: [
             'nom',
             'prenom',
@@ -293,7 +297,7 @@ class GestionUserService {
   // Ancienne méthode (gardée pour rétrocompatibilité, mais LENTE)
   static async exportUsers() {
     const clients = await User.findAll({
-      where: { role: ROLES.CLIENT },
+      where: { role: ROLES.CLIENT, supprimeLe: null },
       order: [['createdAt', 'DESC']],
       limit: 10000, // Limite pour éviter les OOM
     });

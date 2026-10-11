@@ -29,6 +29,8 @@ router.get('/clients/count', adminMiddleware, ctrl.nombreClients);
 router.get('/clients/export', adminMiddleware, ctrl.exportClients);
 router.patch('/clients/:id/activer', adminMiddleware, ctrl.activerClient);
 router.patch('/clients/:id/desactiver', adminMiddleware, ctrl.desactiverClient);
+// Compte anonymisé et fermé ; ses commandes restent (voir SuppressionCompteService).
+router.delete('/clients/:id', adminMiddleware, ctrl.supprimerClient);
 router.get('/clients/:id/adresses', adminMiddleware, ctrl.adressesClient);
 router.post(
   '/clients/:id/adresses',

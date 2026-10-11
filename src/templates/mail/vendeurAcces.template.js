@@ -1,90 +1,59 @@
 // ─────────────────────────────────────────────────────────────
 // templates/mail/vendeurAcces.template.js
-// Email envoyé au vendeur dont le compte est créé par un administrateur :
-// identifiant et mot de passe, à utiliser dans l'APPLICATION MOBILE
-// Yobante Boutique (l'espace vendeur n'existe pas sur le dashboard web).
+// Email de bienvenue envoyé au vendeur dont le compte est créé par un
+// administrateur : identifiant, téléphone et mot de passe, à utiliser dans
+// l'APPLICATION MOBILE Yobante Boutique (pas d'espace vendeur sur le web).
+// Même présentation que l'email de confirmation d'adresse.
 // ─────────────────────────────────────────────────────────────
 
-const { entete } = require('./miseEnPage');
+const { miseEnPage, echapper } = require('./miseEnPage');
 
-const echapper = (valeur) =>
-  String(valeur ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-
-const ligne = (libelle, valeur, { monospace = false, fond = false } = {}) => `
-    <tr style="background:${fond ? '#F7F9FC' : '#FFFFFF'}">
-      <td style="padding:12px;font-size:13px;color:#616161;border-bottom:1px solid #E3E8F0;width:42%">${libelle}</td>
-      <td style="padding:12px;font-size:${monospace ? '17px' : '14px'};font-weight:bold;color:#1C1C1E;border-bottom:1px solid #E3E8F0;${
-        monospace ? 'font-family:Consolas,Menlo,monospace;letter-spacing:1px' : ''
-      }">${valeur}</td>
-    </tr>`;
+/** Une information de connexion : libellé discret, valeur bien lisible. */
+const info = (libelle, valeur, { code = false } = {}) => `
+      <div style="margin:0 0 14px">
+        <div style="font-size:12px;color:#616161;margin:0 0 4px">${libelle}</div>
+        ${
+          code
+            ? `<span style="display:inline-block;background:#E7EDF6;color:#053D8F;border-radius:10px;padding:10px 16px;font-size:20px;font-weight:bold;letter-spacing:2px;font-family:Consolas,Menlo,monospace">${valeur}</span>`
+            : `<div style="font-size:16px;font-weight:bold;color:#1C1C1E">${valeur}</div>`
+        }
+      </div>`;
 
 /**
  * @param {object} p
  * @param {string} p.nom
  * @param {string} p.prenom
  * @param {string} p.email           identifiant de connexion
- * @param {string} [p.telephone]     identifiant alternatif
+ * @param {string} [p.telephone]
  * @param {string} p.motDePasse
  * @param {boolean} [p.temporaire]   vrai pour un mot de passe régénéré (« Renvoyer les identifiants ») :
- *                                   le vendeur devra le changer à la connexion
+ *                                   l'application demandera d'en choisir un nouveau
  * @param {string} [p.nomBoutique]
  */
-module.exports = ({
-  nom,
-  prenom,
-  email,
-  telephone,
-  motDePasse,
-  temporaire = false,
-  nomBoutique,
-}) => `
-<div style="background:#F5F7FB;padding:24px 12px;font-family:Arial,Helvetica,sans-serif;color:#1C1C1E">
-  <div style="max-width:560px;margin:0 auto;background:#FFFFFF;border-radius:16px;overflow:hidden">
-${entete()}
-    <div style="padding:24px">
+module.exports = ({ nom, prenom, email, telephone, motDePasse, temporaire = false, nomBoutique }) =>
+  miseEnPage(`
       <p style="font-size:16px;margin:0 0 12px">Bonjour ${echapper(prenom)} ${echapper(nom)},</p>
-      <p style="font-size:14px;line-height:1.6;margin:0 0 18px">
+      <p style="margin:0 0 20px">
         ${
           temporaire
-            ? 'Voici vos nouveaux identifiants pour votre espace vendeur'
-            : 'Votre compte vendeur a été créé'
+            ? 'Voici vos nouveaux identifiants pour accéder à votre espace vendeur'
+            : 'Bienvenue chez <strong>Yobante Boutique</strong> ! Votre compte vendeur est prêt'
         }${nomBoutique ? ` pour la boutique <strong>${echapper(nomBoutique)}</strong>` : ''}.
-        Connectez-vous depuis <strong>l'application mobile Yobante Boutique</strong> pour gérer
+        Connectez-vous depuis l'application mobile <strong>Yobante Boutique</strong> pour gérer
         vos produits, vos commandes et vos ventes.
       </p>
-
-      <table role="presentation" style="border-collapse:collapse;width:100%;border:1px solid #E3E8F0;border-radius:12px;overflow:hidden">
-        ${ligne('Identifiant (email)', echapper(email), { fond: true })}
-        ${telephone ? ligne('ou téléphone', echapper(telephone)) : ''}
-        ${ligne('Mot de passe', echapper(motDePasse), { monospace: true, fond: true })}
-      </table>
-
-      <div style="margin-top:20px;padding:14px;background:#E7EDF6;border-radius:12px;font-size:13px;line-height:1.6">
-        <strong style="color:#053D8F">Comment vous connecter</strong><br>
-        1. Installez l'application <strong>Yobante Boutique</strong> sur votre téléphone.<br>
-        2. Touchez <strong>Se connecter</strong> puis saisissez l'identifiant et le mot de passe ci-dessus.<br>
-        3. Votre espace vendeur s'ouvre automatiquement.
-      </div>
-
-      ${
-        temporaire
-          ? `<p style="margin-top:16px;padding:12px;background:#FEF6DD;border-left:4px solid #B88A0C;font-size:13px;line-height:1.6">
-        Ce mot de passe est <strong>temporaire</strong> : l'application vous demandera d'en choisir un
-        nouveau à la connexion.
-      </p>`
-          : ''
-      }
-
-      <p style="font-size:12px;color:#616161;line-height:1.6;margin:16px 0 0">
-        L'espace vendeur est disponible uniquement dans l'application mobile : le site
-        d'administration est réservé à l'équipe Yobante. Gardez ces identifiants confidentiels.
+${info("Nom d'utilisateur", echapper(email))}
+${telephone ? info('Numéro de téléphone', echapper(telephone)) : ''}
+${info('Mot de passe', echapper(motDePasse), { code: true })}
+      <p style="margin:6px 0 0;padding:12px 14px;background:#FEF6DD;border-radius:10px;font-size:13px;line-height:1.6">
+        ${
+          temporaire
+            ? "Ce mot de passe est <strong>temporaire</strong> : l'application vous demandera d'en choisir un nouveau à la connexion."
+            : "Vous pouvez modifier ce mot de passe quand vous le souhaitez depuis votre espace vendeur dans l'application : <strong>Compte → Mot de passe</strong>."
+        }
       </p>
-    </div>
-  </div>
-  <p style="text-align:center;font-size:11px;color:#9AA3B2;margin-top:14px">© Yobante Boutique</p>
-</div>
-`;
+      <p style="font-size:12px;color:#616161;margin:16px 0 0">
+        Gardez ces identifiants confidentiels. L'espace vendeur est disponible uniquement dans
+        l'application mobile.
+      </p>
+`);

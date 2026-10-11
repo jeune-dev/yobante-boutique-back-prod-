@@ -5,14 +5,16 @@ const GestionAdminService = require('../../services/admin/admin.service');
 const GestionUserService = require('../../services/admin/user.service');
 const asyncHandler = require('../../utils/asyncHandler');
 const { ok, created } = require('../../utils/response');
-const { BadRequestError, NotFoundError } = require('../../errors/AppError');
+const { BadRequestError, NotFoundError, ConflictError } = require('../../errors/AppError');
+const SuppressionCompteService = require('../../services/admin/suppressionCompte.service');
+const { ROLES } = require('../../constants');
 const formatUser = require('../../utils/formatUser');
 
 // ──────────────────────────── ROUTE UNIFIÉE ────────────────────────────────
 
 exports.getAll = asyncHandler(async (req, res) => {
-  const { search, page, limit } = req.query;
-  const result = await GestionUserService.listerClients({ search, page, limit });
+  const { search, page, limit, isActive } = req.query;
+  const result = await GestionUserService.listerClients({ search, page, limit, isActive });
   return ok(
     res,
     {
@@ -125,6 +127,16 @@ exports.desactiverClient = asyncHandler(async (req, res) => {
   const result = await GestionUserService.desactiverUser(req.params.id);
   if (!result.success) throw new NotFoundError(result.message);
   return ok(res, { client: formatUser(result.user) }, result.message);
+});
+
+/** Suppression (anonymisation) d'un compte client. */
+exports.supprimerClient = asyncHandler(async (req, res) => {
+  const result = await SuppressionCompteService.supprimer(req.params.id, ROLES.CLIENT);
+  if (!result.success) {
+    if (result.status === 409) throw new ConflictError(result.message);
+    throw new NotFoundError(result.message);
+  }
+  return ok(res, null, result.message);
 });
 
 // ── Adresses d'un client (création de commande depuis le dashboard) ─────────

@@ -165,7 +165,7 @@ class GestionVendeurService {
     // annuler sa création. Le mot de passe en clair n'est jamais journalisé.
     const envoi = await sendEmail({
       to: emailClean,
-      subject: 'Votre compte vendeur Yobante Boutique est prêt',
+      subject: 'Bienvenue chez Yobante Boutique — votre compte vendeur est prêt',
       html: vendeurAccesTemplate({
         nom: data.nom,
         prenom: data.prenom,
@@ -199,7 +199,8 @@ class GestionVendeurService {
   static async listerVendeurs({ page, limit, search, statut } = {}) {
     const { page: p, limit: l, offset } = paginate(page, limit);
 
-    const where = { role: ROLES.VENDEUR };
+    // Les comptes supprimés (anonymisés) n'apparaissent plus.
+    const where = { role: ROLES.VENDEUR, supprimeLe: null };
     if (search) {
       where[Op.or] = [
         { nom: { [Op.iLike]: `%${search}%` } },
@@ -345,7 +346,6 @@ class GestionVendeurService {
           message: "Impossible de renvoyer : aucune adresse email valide n'est associée.",
         };
       }
-      const email = user.email.trim().toLowerCase();
       motDePasseTemporaire = GestionVendeurService._genererMotDePasse();
       const hashedPassword = await bcrypt.hash(motDePasseTemporaire, bcryptConfig.saltRounds);
 

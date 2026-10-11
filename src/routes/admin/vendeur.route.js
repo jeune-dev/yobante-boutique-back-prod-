@@ -13,6 +13,8 @@ router.get('/', ctrl.listerVendeurs);
 router.post('/', validate(creerVendeurSchema), ctrl.creerVendeur);
 router.get('/:id', ctrl.getVendeur);
 router.put('/:id', validate(updateProfilVendeurSchema), ctrl.updateProfil);
+// Compte anonymisé et fermé, produits retirés du catalogue ; l'historique reste.
+router.delete('/:id', ctrl.supprimerVendeur);
 
 // Statut du vendeur : lecture et bascule. Le circuit de validation en deux
 // étapes (valider-step1 / valider-step2 / rejeter) a été retiré — un vendeur
