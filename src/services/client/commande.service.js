@@ -28,7 +28,18 @@ function _genererReference() {
 
 async function _getFraisLivraison(ville) {
   if (ville) {
-    const tarif = await FraisLivraison.findOne({ where: { ville, isActive: true } });
+    // Insensible à la casse et aux espaces : « DAKAR », « dakar » ou
+    // « Dakar  » doivent tous recevoir le tarif de Dakar.
+    const tarif = await FraisLivraison.findOne({
+      where: {
+        ville: {
+          [Op.iLike]: String(ville)
+            .trim()
+            .replace(/[\\%_]/g, '\\$&'),
+        },
+        isActive: true,
+      },
+    });
     if (tarif) return Number(tarif.montant);
   }
   return FRAIS_LIVRAISON_DEFAUT;

@@ -233,10 +233,17 @@ app.use(
   motDePasseChange,
   require('./routes/client/signalement.route')
 );
+// Lectures du profil (GET /profile, GET /profile/adresses…) : quota
+// « utilisateur connecté ». Le quota strict des mutations (20 / 15 min) ne
+// s'applique qu'aux écritures : appliqué aux GET, il était vite épuisé par
+// les écrans Compte et Validation de commande, et le mobile ne pouvait plus
+// ni lister ni créer d'adresse (« Adresses indisponibles », « Adresse refusée »).
+const limiteurProfil = (req, res, next) =>
+  (req.method === 'GET' ? authenticatedLimiter : mutationLimiter)(req, res, next);
 app.use(
   '/api/v1/profile',
   auth,
-  mutationLimiter,
+  limiteurProfil,
   motDePasseChange,
   require('./routes/client/profil.route')
 );
