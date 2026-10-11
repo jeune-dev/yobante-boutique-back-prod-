@@ -69,7 +69,7 @@ class JWTUtils {
 
     // 2. Sinon: vérifier en DB (sécurité, juste au cas où)
     const user = await User.findByPk(userId, {
-      attributes: ['id', 'isActive', 'role', 'mustChangePassword'],
+      attributes: ['id', 'isActive', 'role', 'mustChangePassword', 'permissions'],
     });
 
     if (!user || !user.isActive) {
@@ -90,6 +90,9 @@ class JWTUtils {
       role: user.role,
       isActive: user.isActive,
       mustChangePassword: user.mustChangePassword,
+      // Pages autorisées d'un administrateur (null = accès complet). Le cache
+      // est purgé à chaque modification des accès.
+      permissions: user.permissions ?? null,
     };
     cache.set(cacheKey, userObj, CACHE_TTL);
 

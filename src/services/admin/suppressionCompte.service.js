@@ -28,7 +28,11 @@ const STATUTS_EN_COURS = [
   STATUT_COMMANDE.EXPEDIEE,
 ];
 
-const LIBELLES = { [ROLES.CLIENT]: 'Client', [ROLES.VENDEUR]: 'Vendeur' };
+const LIBELLES = {
+  [ROLES.CLIENT]: 'Client',
+  [ROLES.VENDEUR]: 'Vendeur',
+  [ROLES.ADMIN]: 'Administrateur',
+};
 
 /**
  * Suppression d'un compte client ou vendeur depuis le dashboard.
@@ -45,7 +49,9 @@ class SuppressionCompteService {
     const user = await User.findOne({ where: { id, role, supprimeLe: null } });
     if (!user) return { success: false, status: 404, message: `${libelle} introuvable` };
 
-    const enCours = await SuppressionCompteService.#commandesEnCours(id, role);
+    // Un administrateur ne porte pas de commandes : rien à attendre.
+    const enCours =
+      role === ROLES.ADMIN ? 0 : await SuppressionCompteService.#commandesEnCours(id, role);
     if (enCours > 0) {
       return {
         success: false,
@@ -72,6 +78,7 @@ class SuppressionCompteService {
           isVerified: false,
           mustChangePassword: false,
           supprimeLe: new Date(),
+          ...(role === ROLES.ADMIN ? { permissions: [] } : {}),
         },
         { transaction, hooks: false }
       );

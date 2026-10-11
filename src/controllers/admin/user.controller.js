@@ -5,7 +5,22 @@ const GestionAdminService = require('../../services/admin/admin.service');
 const GestionUserService = require('../../services/admin/user.service');
 const asyncHandler = require('../../utils/asyncHandler');
 const { ok, created } = require('../../utils/response');
-const { BadRequestError, NotFoundError, ConflictError } = require('../../errors/AppError');
+const {
+  BadRequestError,
+  NotFoundError,
+  ConflictError,
+  ForbiddenError,
+} = require('../../errors/AppError');
+
+/** Traduit le `status` renvoyé par un service en erreur HTTP. */
+const leverErreur = (result) => {
+  if (result.status === 404 || result.message === 'Administrateur introuvable') {
+    throw new NotFoundError(result.message);
+  }
+  if (result.status === 403) throw new ForbiddenError(result.message);
+  if (result.status === 409) throw new ConflictError(result.message);
+  throw new BadRequestError(result.message);
+};
 const SuppressionCompteService = require('../../services/admin/suppressionCompte.service');
 const { ROLES } = require('../../constants');
 const formatUser = require('../../utils/formatUser');
@@ -49,24 +64,23 @@ exports.getAdmin = asyncHandler(async (req, res) => {
 });
 
 exports.ajouterAdmin = asyncHandler(async (req, res) => {
-  const { nom, prenom, email, telephone } = req.body;
-  const result = await GestionAdminService.ajouterAdmin({ nom, prenom, email, telephone });
-  if (!result.success) throw new BadRequestError(result.message);
+  const { nom, prenom, email, telephone, permissions } = req.body;
+  const result = await GestionAdminService.ajouterAdmin(
+    { nom, prenom, email, telephone, permissions },
+    req.user
+  );
+  if (!result.success) leverErreur(result);
   return created(res, { admin: result.admin, emailEnvoye: result.emailEnvoye }, result.message);
 });
 
 exports.modifierAdmin = asyncHandler(async (req, res) => {
-  const { nom, prenom, email, telephone } = req.body;
-  const result = await GestionAdminService.modifierAdmin(req.params.id, {
-    nom,
-    prenom,
-    email,
-    telephone,
-  });
-  if (!result.success) {
-    if (result.message === 'Administrateur introuvable') throw new NotFoundError(result.message);
-    throw new BadRequestError(result.message);
-  }
+  const { nom, prenom, email, telephone, permissions } = req.body;
+  const result = await GestionAdminService.modifierAdmin(
+    req.params.id,
+    { nom, prenom, email, telephone, permissions },
+    req.user
+  );
+  if (!result.success) leverErreur(result);
   return ok(res, { admin: result.admin }, result.message);
 });
 
@@ -86,6 +100,13 @@ exports.debloquerAdmin = asyncHandler(async (req, res) => {
   const result = await GestionAdminService.debloquerAdmin(req.params.id, req.user.id);
   if (!result.success) throw new BadRequestError(result.message);
   return ok(res, { statut: result.statut, isBlocked: result.isBlocked }, result.message);
+});
+
+/** Suppression (anonymisation) d'un administrateur. */
+exports.supprimerAdmin = asyncHandler(async (req, res) => {
+  const result = await GestionAdminService.supprimerAdmin(req.params.id, req.user.id);
+  if (!result.success) leverErreur(result);
+  return ok(res, null, result.message);
 });
 
 // ──────────────────────────── CLIENTS ──────────────────────────────────────

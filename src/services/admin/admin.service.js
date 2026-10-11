@@ -17,6 +17,8 @@ const cache = require('../../config/cache');
 const { genererMotDePasse } = require('../../utils/security');
 const { sendEmail } = require('../resend.service');
 const adminAccesTemplate = require('../../templates/mail/adminAcces.template');
+const { accesComplet, normaliserPermissions } = require('../../constants/accesAdmin');
+const SuppressionCompteService = require('./suppressionCompte.service');
 
 // Mêmes libellés que pour les vendeurs : l'interface partage ses composants.
 const STATUT = STATUT_VENDEUR;
@@ -48,9 +50,48 @@ const presenter = (user) => {
     // Vrai tant que l'administrateur ne s'est pas encore connecté pour
     // remplacer son mot de passe temporaire.
     mustChangePassword: Boolean(brut.mustChangePassword),
+    // Pages autorisées ; null = accès complet.
+    permissions: Array.isArray(brut.permissions) ? brut.permissions : null,
+    accesComplet: !Array.isArray(brut.permissions),
     createdAt: brut.createdAt,
   };
 };
+
+/**
+ * Vérifie qu'un administrateur peut attribuer `permissions` :
+ *  - seul un administrateur à accès complet peut donner l'accès complet ;
+ *  - on ne peut donner que des pages qu'on possède soi-même ;
+ *  - au moins une page doit être cochée.
+ * Renvoie un message d'erreur, ou null si c'est permis.
+ */
+const refusAttribution = (auteur, permissions) => {
+  const auteurComplet = accesComplet(auteur?.permissions);
+  if (permissions === null) {
+    return auteurComplet
+      ? null
+      : "Seul un administrateur à accès complet peut donner l'accès complet.";
+  }
+  if (permissions.length === 0) return 'Cochez au moins une page.';
+  if (!auteurComplet) {
+    const horsDroits = permissions.filter((p) => !auteur.permissions.includes(p));
+    if (horsDroits.length) {
+      return `Vous ne pouvez pas donner accès à des pages que vous n'avez pas (${horsDroits.join(', ')}).`;
+    }
+  }
+  return null;
+};
+
+/** Nombre d'administrateurs actifs à accès complet, hors `saufId`. */
+const nbAccesCompletActifs = (saufId) =>
+  User.count({
+    where: {
+      role: ROLES.ADMIN,
+      isActive: true,
+      supprimeLe: null,
+      permissions: null,
+      ...(saufId ? { id: { [Op.ne]: saufId } } : {}),
+    },
+  });
 
 const ATTRIBUTS = [
   'id',
@@ -61,6 +102,7 @@ const ATTRIBUTS = [
   'role',
   'isActive',
   'mustChangePassword',
+  'permissions',
   'createdAt',
 ];
 
@@ -86,7 +128,8 @@ class GestionAdminService {
   static async listerAdmins({ page, limit, search, statut } = {}) {
     const { page: p, limit: l, offset } = paginate(page, limit);
 
-    const where = { role: ROLES.ADMIN };
+    // Les comptes supprimés (anonymisés) n'apparaissent plus.
+    const where = { role: ROLES.ADMIN, supprimeLe: null };
     if (search) {
       where[Op.or] = [
         { nom: { [Op.iLike]: `%${search}%` } },
@@ -113,7 +156,10 @@ class GestionAdminService {
   }
 
   static async getAdmin(id) {
-    const admin = await User.findOne({ where: { id, role: ROLES.ADMIN }, attributes: ATTRIBUTS });
+    const admin = await User.findOne({
+      where: { id, role: ROLES.ADMIN, supprimeLe: null },
+      attributes: ATTRIBUTS,
+    });
     if (!admin) return { success: false, message: 'Administrateur introuvable' };
     return { success: true, admin: presenter(admin) };
   }
@@ -122,7 +168,12 @@ class GestionAdminService {
    * Aucun mot de passe n'est accepté depuis l'interface : il est généré ici
    * puis envoyé par email, et devra être remplacé à la première connexion.
    */
-  static async ajouterAdmin({ nom, prenom, email, telephone }) {
+  static async ajouterAdmin({ nom, prenom, email, telephone, permissions }, auteur = null) {
+    // Accès choisis à la création ; sans liste, accès complet (si l'auteur l'a).
+    const acces = normaliserPermissions(permissions);
+    const refus = refusAttribution(auteur, acces);
+    if (refus) return { success: false, status: 403, message: refus };
+
     const emailClean = email.trim().toLowerCase();
     const motDePasseTemporaire = genererMotDePasse();
 
@@ -148,6 +199,7 @@ class GestionAdminService {
           isActive: true,
           isVerified: true,
           mustChangePassword: true,
+          permissions: acces,
         },
         { transaction: t }
       );
@@ -177,11 +229,38 @@ class GestionAdminService {
     };
   }
 
-  static async modifierAdmin(id, { nom, prenom, email, telephone }) {
-    const admin = await User.findOne({ where: { id, role: ROLES.ADMIN } });
+  static async modifierAdmin(id, { nom, prenom, email, telephone, permissions }, auteur = null) {
+    const admin = await User.findOne({ where: { id, role: ROLES.ADMIN, supprimeLe: null } });
     if (!admin) return { success: false, message: 'Administrateur introuvable' };
 
     const updates = {};
+
+    // Accès : `permissions` absent = inchangé ; null = accès complet ; liste = ces pages.
+    if (permissions !== undefined) {
+      const acces = normaliserPermissions(permissions);
+      if (auteur && id === auteur.id) {
+        return {
+          success: false,
+          status: 403,
+          message: 'Vous ne pouvez pas modifier vos propres accès.',
+        };
+      }
+      const refus = refusAttribution(auteur, acces);
+      if (refus) return { success: false, status: 403, message: refus };
+      // Le dernier administrateur à accès complet ne peut pas être restreint.
+      if (
+        acces !== null &&
+        accesComplet(admin.permissions) &&
+        (await nbAccesCompletActifs(id)) === 0
+      ) {
+        return {
+          success: false,
+          status: 409,
+          message: 'Impossible de restreindre le dernier administrateur à accès complet.',
+        };
+      }
+      updates.permissions = acces;
+    }
     if (nom !== undefined && nom.trim()) updates.nom = nom.trim();
     if (prenom !== undefined && prenom.trim()) updates.prenom = prenom.trim();
     if (telephone !== undefined) updates.telephone = telephone ? telephone.trim() : null;
@@ -290,12 +369,34 @@ class GestionAdminService {
     try {
       const admin = await User.findOne({
         where: { id, role: ROLES.ADMIN },
-        attributes: ['id', 'isActive'],
+        attributes: ['id', 'isActive', 'permissions'],
         transaction: t,
       });
       if (!admin) {
         await t.rollback();
         return { success: false, message: 'Administrateur introuvable' };
+      }
+
+      // Le dernier administrateur à accès complet ne peut pas être bloqué :
+      // plus personne ne pourrait gérer les accès.
+      if (!actif && admin.isActive && accesComplet(admin.permissions)) {
+        const autres = await User.count({
+          where: {
+            role: ROLES.ADMIN,
+            isActive: true,
+            supprimeLe: null,
+            permissions: null,
+            id: { [Op.ne]: id },
+          },
+          transaction: t,
+        });
+        if (autres === 0) {
+          await t.rollback();
+          return {
+            success: false,
+            message: 'Impossible de bloquer le dernier administrateur à accès complet.',
+          };
+        }
       }
 
       if (!actif) {
@@ -356,6 +457,36 @@ class GestionAdminService {
 
   static debloquerAdmin(id, auteurId) {
     return GestionAdminService._changerStatut(id, true, auteurId);
+  }
+
+  /**
+   * Supprime un administrateur : compte anonymisé et fermé (voir
+   * SuppressionCompteService), son historique d'actions reste lisible.
+   * Jamais soi-même, jamais le dernier administrateur à accès complet.
+   */
+  static async supprimerAdmin(id, auteurId) {
+    if (id === auteurId) {
+      return {
+        success: false,
+        status: 403,
+        message: 'Vous ne pouvez pas supprimer votre propre compte.',
+      };
+    }
+    const cible = await User.findOne({
+      where: { id, role: ROLES.ADMIN, supprimeLe: null },
+      attributes: ['id', 'permissions'],
+    });
+    if (!cible) return { success: false, status: 404, message: 'Administrateur introuvable' };
+    if (accesComplet(cible.permissions) && (await nbAccesCompletActifs(id)) === 0) {
+      return {
+        success: false,
+        status: 409,
+        message: 'Impossible de supprimer le dernier administrateur à accès complet.',
+      };
+    }
+    const resultat = await SuppressionCompteService.supprimer(id, ROLES.ADMIN);
+    invaliderCacheAuth(id);
+    return resultat;
   }
 }
 

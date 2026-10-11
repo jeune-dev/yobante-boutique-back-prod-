@@ -10,6 +10,10 @@ const sessionCtrl = require('../../controllers/admin/session.controller');
 router.get('/me', sessionCtrl.me);
 
 router.use('/auth', require('./auth.route'));
+
+// Au-delà : chaque administrateur n'atteint que les pages qui lui sont
+// attribuées (users.permissions ; null = accès complet).
+router.use(require('../../middlewares/accesAdmin.middleware'));
 router.use('/categories', require('./categorie.route'));
 router.use('/produits', require('./produit.route'));
 router.use('/commandes', require('./commande.route'));

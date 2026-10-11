@@ -6,6 +6,16 @@
 // ─────────────────────────────────────────────────────────────
 const Joi = require('joi');
 
+const { PAGES_ADMIN } = require('../constants/accesAdmin');
+
+// Pages du dashboard autorisées ; null = accès complet.
+const permissions = Joi.array()
+  .items(Joi.string().valid(...PAGES_ADMIN))
+  .unique()
+  .allow(null)
+  .optional()
+  .messages({ 'any.only': 'Page inconnue' });
+
 const creerAdminSchema = Joi.object({
   nom: Joi.string().trim().max(100).required().messages({
     'any.required': 'Le nom est obligatoire',
@@ -21,6 +31,7 @@ const creerAdminSchema = Joi.object({
     'string.email': "L'email est invalide",
   }),
   telephone: Joi.string().trim().max(20).optional().allow('', null),
+  permissions,
 });
 
 const modifierAdminSchema = Joi.object({
@@ -30,6 +41,7 @@ const modifierAdminSchema = Joi.object({
     'string.email': "L'email est invalide",
   }),
   telephone: Joi.string().trim().max(20).optional().allow('', null),
+  permissions,
 }).min(1);
 
 module.exports = { creerAdminSchema, modifierAdminSchema };

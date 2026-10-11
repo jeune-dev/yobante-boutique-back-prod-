@@ -60,6 +60,12 @@ const User = sequelize.define(
       type: DataTypes.DATE,
       allowNull: true,
     },
+    // Administrateurs : pages du dashboard autorisées (constants/accesAdmin.js).
+    // null = accès complet.
+    permissions: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+    },
     createdAt: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,

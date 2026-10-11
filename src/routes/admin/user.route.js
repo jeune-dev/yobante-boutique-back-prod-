@@ -13,7 +13,7 @@ router.get('/', adminMiddleware, ctrl.getAll);
 router.patch('/:id/toggle', adminMiddleware, ctrl.toggleActivation);
 
 // ── Admins ──────────────────────────────────────────────────────────────────
-// Pas de suppression : un administrateur se bloque, son historique reste.
+// Accès page par page (users.permissions), blocage et suppression (anonymisation).
 // Aucun mot de passe n'est saisi : il est généré et envoyé par email.
 router.get('/admins', adminMiddleware, ctrl.listeAdmins);
 router.post('/admins', adminMiddleware, validate(creerAdminSchema), ctrl.ajouterAdmin);
@@ -22,6 +22,8 @@ router.put('/admins/:id', adminMiddleware, validate(modifierAdminSchema), ctrl.m
 router.post('/admins/:id/renvoyer-identifiants', adminMiddleware, ctrl.renvoyerIdentifiantsAdmin);
 router.patch('/admins/:id/bloquer', adminMiddleware, ctrl.bloquerAdmin);
 router.patch('/admins/:id/debloquer', adminMiddleware, ctrl.debloquerAdmin);
+// Compte anonymisé et fermé ; jamais soi-même ni le dernier accès complet.
+router.delete('/admins/:id', adminMiddleware, ctrl.supprimerAdmin);
 
 // ── Clients ─────────────────────────────────────────────────────────────────
 router.get('/clients', adminMiddleware, ctrl.listeClients);
