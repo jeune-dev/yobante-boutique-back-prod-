@@ -11,6 +11,8 @@ const SousRayon = sequelize.define(
     image: { type: DataTypes.STRING(500), allowNull: true },
     isActive: { type: DataTypes.BOOLEAN, defaultValue: true },
     rayonId: { type: DataTypes.UUID, allowNull: false },
+    // Ordre d'affichage dans son rayon ; à égalité, le nom départage.
+    ordre: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
   },
   { tableName: 'sous_rayons', timestamps: true }
 );

@@ -29,10 +29,16 @@ router.get(
           as: 'sousRayons',
           where: { isActive: true },
           required: false,
-          attributes: ['id', 'nom', 'slug', 'image'],
+          attributes: ['id', 'nom', 'slug', 'image', 'ordre'],
         },
       ],
-      order: [['nom', 'ASC']],
+      // Ordre du catalogue, réglé par l'administration.
+      order: [
+        ['ordre', 'ASC'],
+        ['nom', 'ASC'],
+        [{ model: SousRayon, as: 'sousRayons' }, 'ordre', 'ASC'],
+        [{ model: SousRayon, as: 'sousRayons' }, 'nom', 'ASC'],
+      ],
     });
     return ok(res, { rayons }, 'Rayons récupérés');
   })
@@ -43,7 +49,10 @@ router.get(
   asyncHandler(async (req, res) => {
     const sousRayons = await SousRayon.findAll({
       where: { rayonId: req.params.id, isActive: true },
-      order: [['nom', 'ASC']],
+      order: [
+        ['ordre', 'ASC'],
+        ['nom', 'ASC'],
+      ],
     });
     return ok(res, { sousRayons }, 'Sous-rayons récupérés');
   })

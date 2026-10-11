@@ -16,18 +16,7 @@ require('dotenv').config();
 const sequelize = require('../config/db');
 const { Rayon, SousRayon } = require('../models');
 const logger = require('../config/logger');
-const { RAYONS } = require('./rayons.data');
-
-/** Slug simple et stable : c'est la clé d'idempotence du script. */
-function slugifier(texte) {
-  return texte
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/['’]/g, '-')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
+const { RAYONS, slugifier } = require('./rayons.data');
 
 async function seedRayons() {
   let rayonsCrees = 0;
@@ -38,7 +27,13 @@ async function seedRayons() {
 
     const [rayon, cree] = await Rayon.findOrCreate({
       where: { slug },
-      defaults: { nom: definition.nom, slug, isActive: true },
+      defaults: {
+        nom: definition.nom,
+        slug,
+        description: definition.description ?? null,
+        isActive: true,
+        ordre: index + 1,
+      },
     });
 
     if (cree) {
@@ -48,7 +43,7 @@ async function seedRayons() {
       logger.info(`Rayon already exists: ${definition.nom}`);
     }
 
-    for (const nomSousRayon of definition.sousRayons) {
+    for (const [rang, nomSousRayon] of definition.sousRayons.entries()) {
       // Le slug d'un sous-rayon est préfixé par son rayon : « Surgelés » peut
       // exister dans plusieurs rayons sans collision d'unicité.
       const slugSousRayon = `${slug}-${slugifier(nomSousRayon)}`;
@@ -60,14 +55,11 @@ async function seedRayons() {
           slug: slugSousRayon,
           rayonId: rayon.id,
           isActive: true,
+          ordre: rang + 1,
         },
       });
       if (sousCree) sousRayonsCrees++;
     }
-
-    // `ordre` n'existe pas sur le modèle : l'ordre d'affichage suit la
-    // création, d'où le parcours séquentiel plutôt qu'en parallèle.
-    void index;
   }
 
   return { rayonsCrees, sousRayonsCrees };

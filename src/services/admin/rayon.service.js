@@ -2,15 +2,19 @@
 const { Op } = require('sequelize');
 const { Rayon, SousRayon } = require('../../models');
 const paginate = require('../../utils/paginate');
+const { slugifier: toSlug, SLUG_RAYON_PROMOTIONS } = require('../../seeders/rayons.data');
 
-function toSlug(str) {
-  return str
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-]/g, '');
-}
+// Ordre du catalogue : `ordre` croissant, puis le nom.
+const ORDRE = [
+  ['ordre', 'ASC'],
+  ['nom', 'ASC'],
+];
+
+/**
+ * Slug d'un sous-rayon, préfixé par son rayon : « Chaussures » peut exister
+ * dans Sport et dans Mode sans collision d'unicité.
+ */
+const slugSousRayon = (rayon, nom) => `${rayon.slug}-${toSlug(nom)}`;
 
 class RayonService {
   static async lister({ page, limit, search, actif } = {}) {
@@ -25,10 +29,14 @@ class RayonService {
           model: SousRayon,
           as: 'sousRayons',
           required: false,
-          attributes: ['id', 'nom', 'slug', 'isActive', 'image'],
+          attributes: ['id', 'nom', 'slug', 'isActive', 'image', 'ordre'],
         },
       ],
-      order: [['nom', 'ASC']],
+      order: [
+        ...ORDRE,
+        [{ model: SousRayon, as: 'sousRayons' }, 'ordre', 'ASC'],
+        [{ model: SousRayon, as: 'sousRayons' }, 'nom', 'ASC'],
+      ],
       limit: l,
       offset,
       // Sans cela, le compte porte sur les lignes jointes : 15 rayons ayant
@@ -45,24 +53,32 @@ class RayonService {
 
   static async getById(id) {
     const rayon = await Rayon.findByPk(id, {
-      include: [{ model: SousRayon, as: 'sousRayons', order: [['nom', 'ASC']] }],
+      include: [{ model: SousRayon, as: 'sousRayons' }],
+      order: [
+        [{ model: SousRayon, as: 'sousRayons' }, 'ordre', 'ASC'],
+        [{ model: SousRayon, as: 'sousRayons' }, 'nom', 'ASC'],
+      ],
     });
     if (!rayon) return { success: false, message: 'Rayon introuvable' };
     return { success: true, rayon };
   }
 
-  static async creer({ nom, description, image }) {
+  static async creer({ nom, description, image, ordre }) {
     const slug = toSlug(nom);
     const exist = await Rayon.findOne({ where: { slug } });
     if (exist) return { success: false, message: 'Un rayon avec ce nom existe déjà' };
-    const rayon = await Rayon.create({ nom, slug, description, image });
+    // Sans ordre précisé, le nouveau rayon se place à la fin.
+    const rang = ordre ?? ((await Rayon.max('ordre')) || 0) + 1;
+    const rayon = await Rayon.create({ nom, slug, description, image, ordre: rang });
     return { success: true, message: 'Rayon créé', rayon };
   }
 
   static async modifier(id, data) {
     const rayon = await Rayon.findByPk(id);
     if (!rayon) return { success: false, message: 'Rayon introuvable' };
-    if (data.nom) data.slug = toSlug(data.nom);
+    // Le rayon « Promotions » est reconnu par son slug dans l'application :
+    // le renommer ne doit pas le lui faire perdre.
+    if (data.nom && rayon.slug !== SLUG_RAYON_PROMOTIONS) data.slug = toSlug(data.nom);
     await rayon.update(data);
     return { success: true, message: 'Rayon modifié', rayon };
   }
@@ -83,7 +99,7 @@ class RayonService {
     if (search) where.nom = { [Op.iLike]: `%${search}%` };
     const { count, rows } = await SousRayon.findAndCountAll({
       where,
-      order: [['nom', 'ASC']],
+      order: ORDRE,
       limit: l,
       offset,
     });
@@ -94,20 +110,28 @@ class RayonService {
     };
   }
 
-  static async creerSousRayon(rayonId, { nom, description, image }) {
+  static async creerSousRayon(rayonId, { nom, description, image, ordre }) {
     const rayon = await Rayon.findByPk(rayonId);
     if (!rayon) return { success: false, message: 'Rayon introuvable' };
-    const slug = toSlug(nom);
+    const slug = slugSousRayon(rayon, nom);
     const exist = await SousRayon.findOne({ where: { slug } });
-    if (exist) return { success: false, message: 'Un sous-rayon avec ce nom existe déjà' };
-    const sousRayon = await SousRayon.create({ nom, slug, description, image, rayonId });
+    if (exist) return { success: false, message: 'Ce sous-rayon existe déjà dans ce rayon' };
+    const rang = ordre ?? ((await SousRayon.max('ordre', { where: { rayonId } })) || 0) + 1;
+    const sousRayon = await SousRayon.create({
+      nom,
+      slug,
+      description,
+      image,
+      rayonId,
+      ordre: rang,
+    });
     return { success: true, message: 'Sous-rayon créé', sousRayon };
   }
 
   static async modifierSousRayon(id, data) {
-    const sr = await SousRayon.findByPk(id);
+    const sr = await SousRayon.findByPk(id, { include: [{ model: Rayon, as: 'rayon' }] });
     if (!sr) return { success: false, message: 'Sous-rayon introuvable' };
-    if (data.nom) data.slug = toSlug(data.nom);
+    if (data.nom) data.slug = sr.rayon ? slugSousRayon(sr.rayon, data.nom) : toSlug(data.nom);
     await sr.update(data);
     return { success: true, message: 'Sous-rayon modifié', sousRayon: sr };
   }

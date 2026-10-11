@@ -10,6 +10,8 @@ const Rayon = sequelize.define(
     description: { type: DataTypes.TEXT, allowNull: true },
     image: { type: DataTypes.STRING(500), allowNull: true },
     isActive: { type: DataTypes.BOOLEAN, defaultValue: true },
+    // Ordre d'affichage (croissant) ; à égalité, le nom départage.
+    ordre: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
   },
   { tableName: 'rayons', timestamps: true }
 );
