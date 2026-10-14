@@ -5,6 +5,7 @@ const { STATUT_VALIDATION_PRODUIT } = require('../../constants');
 const { Op } = require('sequelize');
 const { Produit, Categorie, Avis, User, ProfilVendeur } = require('../../models');
 const paginate = require('../../utils/paginate');
+const { conditionRecherche } = require('../../utils/rechercheTexte');
 
 // Include commun : catégorie + vendeur (avec sa boutique) pour enrichir les
 // produits renvoyés au client (nom boutique, localisation, contact vendeur).
@@ -49,12 +50,9 @@ class ProduitService {
       if (prixMin) where.prix[Op.gte] = prixMin;
       if (prixMax) where.prix[Op.lte] = prixMax;
     }
-    if (search) {
-      where[Op.or] = [
-        { nom: { [Op.iLike]: `%${search}%` } },
-        { description: { [Op.iLike]: `%${search}%` } },
-      ];
-    }
+    // Recherche par mots (voir utils/rechercheTexte.js).
+    const recherche = await conditionRecherche(search, { Categorie });
+    if (recherche) Object.assign(where, recherche);
 
     const order = {
       prix_asc: [['prix', 'ASC']],
@@ -144,14 +142,18 @@ class ProduitService {
   static async rechercherProduits({ query, page, limit } = {}) {
     const { page: p, limit: l, offset } = paginate(page, limit);
 
+    // Requête vide : rien à chercher, plutôt que tout le catalogue.
+    const recherche = await conditionRecherche(query, { Categorie });
+    if (!recherche) {
+      return {
+        success: true,
+        produits: [],
+        pagination: { total: 0, totalPages: 0, page: p, limit: l },
+      };
+    }
+
     const { count, rows } = await Produit.findAndCountAll({
-      where: {
-        ...VISIBLE_AU_PUBLIC,
-        [Op.or]: [
-          { nom: { [Op.iLike]: `%${query}%` } },
-          { description: { [Op.iLike]: `%${query}%` } },
-        ],
-      },
+      where: { ...VISIBLE_AU_PUBLIC, ...recherche },
       include: CATALOGUE_INCLUDE,
       order: [['createdAt', 'DESC']],
       limit: l,

@@ -101,9 +101,12 @@ const Produit = sequelize.define(
       defaultValue: false,
       comment: 'Si vrai, le champ prix représente le prix au kg',
     },
+    // État du produit, facultatif : NULL = non précisé (aucun badge dans
+    // l'application). Voir la migration 20261014000001.
     etat: {
       type: DataTypes.ENUM('neuf', 'reconditionne'),
-      defaultValue: 'neuf',
+      allowNull: true,
+      defaultValue: null,
     },
     // Le rangement du catalogue se fait désormais par rayon / sous-rayon.
     // La colonne reste en base pour l'historique et la navigation client

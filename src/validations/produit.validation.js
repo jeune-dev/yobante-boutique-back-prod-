@@ -21,6 +21,19 @@ const prixAchatOptionnel = Joi.any()
   })
   .messages({ 'any.invalid': "Le prix d'achat doit être un nombre positif" });
 
+/**
+ * État du produit, facultatif : « neuf », « reconditionne », ou vide / null
+ * pour « non précisé » (aucun badge dans l'application).
+ */
+const etatOptionnel = Joi.any()
+  .optional()
+  .custom((valeur, helpers) => {
+    if (valeur === '' || valeur === null) return null;
+    if (valeur === 'neuf' || valeur === 'reconditionne') return valeur;
+    return helpers.error('any.invalid');
+  })
+  .messages({ 'any.invalid': "L'état doit être « neuf » ou « reconditionne »" });
+
 // La catégorie a été retirée du formulaire produit : le classement se fait
 // exclusivement par rayon puis sous-rayon. Un `categorieId` encore envoyé par
 // un ancien client est simplement ignoré (`stripUnknown` côté middleware) : la
@@ -47,7 +60,7 @@ const createProduitSchema = Joi.object({
   reference: Joi.string().trim().allow('', null).optional(),
   isFeatured: Joi.boolean().optional(),
   venduAuPoids: Joi.boolean().optional(),
-  etat: Joi.string().valid('neuf', 'reconditionne').optional(),
+  etat: etatOptionnel,
 });
 
 const updateProduitSchema = Joi.object({
@@ -68,7 +81,7 @@ const updateProduitSchema = Joi.object({
   isFeatured: Joi.boolean().optional(),
   isActive: Joi.boolean().optional(),
   venduAuPoids: Joi.boolean().optional(),
-  etat: Joi.string().valid('neuf', 'reconditionne').optional(),
+  etat: etatOptionnel,
 }).min(1);
 
 const updateStockSchema = Joi.object({

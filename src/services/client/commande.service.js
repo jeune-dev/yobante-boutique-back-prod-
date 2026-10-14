@@ -7,9 +7,11 @@ const {
   Adresse,
   Paiement,
   FraisLivraison,
+  Promotion,
   User,
   sequelize,
 } = require('../../models');
+const { prixEffectifs } = require('../../utils/prixEffectif');
 const {
   FRAIS_LIVRAISON_DEFAUT,
   STATUT_COMMANDE,
@@ -94,7 +96,16 @@ class CommandeService {
       const quantites = _regrouperItems(items);
       const produits = await Produit.findAll({
         where: { id: [...quantites.keys()] },
-        attributes: ['id', 'nom', 'prix', 'stock', 'isActive', 'statutValidation', 'vendeurId'],
+        attributes: [
+          'id',
+          'nom',
+          'prix',
+          'prixPromo',
+          'stock',
+          'isActive',
+          'statutValidation',
+          'vendeurId',
+        ],
       });
       const parId = new Map(produits.map((p) => [p.id, p]));
       for (const produitId of quantites.keys()) {
@@ -139,6 +150,15 @@ class CommandeService {
 
     const fraisLivraison = await _getFraisLivraison(adresse.ville);
 
+    // Prix facturé = prix affiché au client : promotion en cours comprise
+    // (voir utils/prixEffectif.js). Auparavant, le prix catalogue était
+    // facturé même quand l'application annonçait un prix promotionnel.
+    const prixFactures = await prixEffectifs(
+      Promotion,
+      lignesPanier.map((l) => l.produit)
+    );
+    const prixDe = (ligne) => prixFactures.get(ligne.produit.id) ?? Number(ligne.produit.prix);
+
     const t = await sequelize.transaction();
     let commande;
     try {
@@ -146,10 +166,7 @@ class CommandeService {
       await acquireXact(`commande:${userId}`, t);
 
       const lignesTotal = round2(
-        lignesPanier.reduce(
-          (sum, l) => sum + Math.round(Number(l.produit.prix) * 100) * l.quantite,
-          0
-        ) / 100
+        lignesPanier.reduce((sum, l) => sum + Math.round(prixDe(l) * 100) * l.quantite, 0) / 100
       );
 
       commande = await Commande.create(
@@ -190,8 +207,8 @@ class CommandeService {
           commandeId: commande.id,
           produitId: ligne.produitId,
           quantite,
-          prixUnitaire: ligne.produit.prix,
-          sousTotal: calcSousTotal(ligne.produit.prix, quantite),
+          prixUnitaire: prixDe(ligne),
+          sousTotal: calcSousTotal(prixDe(ligne), quantite),
         });
       }
 

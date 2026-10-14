@@ -2,7 +2,8 @@
 const router = require('express').Router();
 const asyncHandler = require('../../utils/asyncHandler');
 const { ok } = require('../../utils/response');
-const { Rayon, SousRayon, Produit, User, ProfilVendeur } = require('../../models');
+const { Rayon, SousRayon, Produit, User, ProfilVendeur, Categorie } = require('../../models');
+const { conditionRecherche } = require('../../utils/rechercheTexte');
 
 // Même forme de produit que le catalogue (`GET /produits`) : le mobile lit
 // `vendeur` (nom, téléphone WhatsApp) et `rayon`/`sousRayon` sur chaque carte.
@@ -65,7 +66,9 @@ router.get(
     const offset = (parseInt(page) - 1) * parseInt(limit);
     const where = { rayonId: req.params.id, isActive: true, statutValidation: 'valide' };
     if (sousRayonId) where.sousRayonId = sousRayonId;
-    if (search) where.nom = { [Op.iLike]: `%${search}%` };
+    // Recherche par mots (voir utils/rechercheTexte.js).
+    const recherche = await conditionRecherche(search, { Categorie });
+    if (recherche) Object.assign(where, recherche);
     const { count, rows } = await Produit.findAndCountAll({
       where,
       include: PRODUIT_INCLUDE,
@@ -91,7 +94,9 @@ router.get(
     const { page = 1, limit = 20, search } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
     const where = { sousRayonId: req.params.id, isActive: true, statutValidation: 'valide' };
-    if (search) where.nom = { [Op.iLike]: `%${search}%` };
+    // Recherche par mots (voir utils/rechercheTexte.js).
+    const recherche = await conditionRecherche(search, { Categorie });
+    if (recherche) Object.assign(where, recherche);
     const { count, rows } = await Produit.findAndCountAll({
       where,
       include: PRODUIT_INCLUDE,

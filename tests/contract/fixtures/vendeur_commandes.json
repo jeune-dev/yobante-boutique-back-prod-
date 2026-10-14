@@ -61,7 +61,9 @@
               }
             }
           ],
-          "montantVendeur": 3000
+          "montantVendeur": 3000,
+          "acceptation": null,
+          "decisionPossible": true
         }
       ],
       "pagination": {
