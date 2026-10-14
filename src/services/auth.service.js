@@ -127,7 +127,9 @@ class AuthService {
             region: adresse.region,
             pays: adresse.pays || 'Sénégal',
             codePostal: adresse.codePostal,
-            isDefault: true,
+            // Adresse de livraison par défaut, sauf si le client a décoché
+            // « Utiliser comme adresse de livraison ».
+            isDefault: adresse.isDefault !== false,
           },
           { transaction: t }
         );

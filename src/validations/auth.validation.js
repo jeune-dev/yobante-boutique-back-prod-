@@ -24,6 +24,8 @@ const registerSchema = Joi.object({
     region: Joi.string().trim().max(100).optional().allow('', null),
     pays: Joi.string().trim().max(100).optional().allow('', null),
     codePostal: Joi.string().trim().max(20).optional().allow('', null),
+    // Case « Utiliser comme adresse de livraison » de l'inscription.
+    isDefault: Joi.boolean().optional(),
   }).optional(),
 });
 
