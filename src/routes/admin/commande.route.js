@@ -10,6 +10,8 @@ const {
   creerCommandeAdminSchema,
   annulerCommandeSchema,
   modifierCommandeSchema,
+  marquerRuptureSchema,
+  changerStatutSchema,
 } = require('../../validations/commande.validation');
 const { NotFoundError } = require('../../errors/AppError');
 
@@ -31,12 +33,16 @@ router.get('/', adminMiddleware, ctrl.getAll);
 router.get('/export', adminMiddleware, ctrl.exportCsv);
 router.get('/:id', adminMiddleware, ctrl.getOne);
 router.patch('/:id/valider', adminMiddleware, ctrl.valider);
+// Changement de statut depuis la fiche commande (client notifié).
+router.patch('/:id/statut', adminMiddleware, validate(changerStatutSchema), ctrl.changerStatut);
 router.patch('/:id/rejeter', adminMiddleware, validate(rejeterCommandeSchema), ctrl.rejeter);
 router.patch('/:id/preparation', adminMiddleware, ctrl.mettreEnPreparation);
 router.patch('/:id/expedier', adminMiddleware, ctrl.marquerExpediee);
 router.patch('/:id/livrer', adminMiddleware, ctrl.marquerLivree);
 router.patch('/:id/annuler', adminMiddleware, validate(annulerCommandeSchema), ctrl.annuler);
 router.patch('/:id/modifier', adminMiddleware, validate(modifierCommandeSchema), ctrl.modifier);
+// Produits en rupture de stock (après refus du vendeur) : le client est notifié.
+router.patch('/:id/rupture', adminMiddleware, validate(marquerRuptureSchema), ctrl.marquerRupture);
 router.post('/', adminMiddleware, validate(creerCommandeAdminSchema), ctrl.creer);
 
 module.exports = router;

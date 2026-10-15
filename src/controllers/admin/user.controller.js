@@ -28,8 +28,16 @@ const formatUser = require('../../utils/formatUser');
 // ──────────────────────────── ROUTE UNIFIÉE ────────────────────────────────
 
 exports.getAll = asyncHandler(async (req, res) => {
-  const { search, page, limit, isActive } = req.query;
-  const result = await GestionUserService.listerClients({ search, page, limit, isActive });
+  const { search, page, limit, isActive, segment, commandeDebut, commandeFin } = req.query;
+  const result = await GestionUserService.listerClients({
+    search,
+    page,
+    limit,
+    isActive,
+    segment,
+    commandeDebut,
+    commandeFin,
+  });
   return ok(
     res,
     {

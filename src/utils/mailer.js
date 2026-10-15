@@ -94,6 +94,26 @@ function sendCommandeStatut(to, commande, statut) {
   });
 }
 
+/**
+ * Produits d'une commande en rupture de stock, avec le motif et le nouveau
+ * montant (le client ne paie que ce qui sera livré).
+ */
+function sendRuptureStock(to, commande, { produits, motif }) {
+  const liste = produits.map((nom) => `<li>${echapper(nom)}</li>`).join('');
+  return sendMail({
+    to,
+    subject: `Produit indisponible dans votre commande ${commande.reference}`,
+    html: miseEnPage(
+      `<p style="margin:0 0 8px">Nous sommes désolés : ${
+        produits.length > 1 ? 'les produits suivants sont' : 'le produit suivant est'
+      } en rupture de stock dans votre commande <strong>${echapper(commande.reference)}</strong> :</p>` +
+        `<ul style="margin:0 0 8px;padding-left:18px">${liste}</ul>` +
+        `<p style="margin:0 0 8px"><strong>Motif :</strong> ${echapper(motif)}</p>` +
+        `<p style="margin:0">Nouveau montant de la commande : <strong>${montantFcfa(commande.montantTotal)}</strong>. Le détail est disponible dans l'application.</p>`
+    ),
+  });
+}
+
 function sendDemandeSuppressionCompteEmail(to, { email, objet, demandeId }) {
   return sendMail({
     to,
@@ -110,6 +130,7 @@ function sendDemandeSuppressionCompteEmail(to, { email, objet, demandeId }) {
 
 module.exports = {
   sendMail,
+  sendRuptureStock,
   sendOtpEmail,
   sendVerificationEmail,
   sendWelcomeEmail,

@@ -3,7 +3,7 @@ const router = require('express').Router();
 const asyncHandler = require('../../utils/asyncHandler');
 const { ok } = require('../../utils/response');
 const { Rayon, SousRayon, Produit, User, ProfilVendeur, Categorie } = require('../../models');
-const { conditionRecherche } = require('../../utils/rechercheTexte');
+const { chercherProduits } = require('../../utils/rechercheTexte');
 
 // Même forme de produit que le catalogue (`GET /produits`) : le mobile lit
 // `vendeur` (nom, téléphone WhatsApp) et `rayon`/`sousRayon` sur chaque carte.
@@ -17,7 +17,6 @@ const PRODUIT_INCLUDE = [
     include: [{ model: ProfilVendeur, as: 'profilVendeur' }],
   },
 ];
-const { Op } = require('sequelize');
 
 router.get(
   '/',
@@ -63,18 +62,17 @@ router.get(
   '/:id/produits',
   asyncHandler(async (req, res) => {
     const { page = 1, limit = 20, sousRayonId, search } = req.query;
-    const offset = (parseInt(page) - 1) * parseInt(limit);
     const where = { rayonId: req.params.id, isActive: true, statutValidation: 'valide' };
     if (sousRayonId) where.sousRayonId = sousRayonId;
-    // Recherche par mots (voir utils/rechercheTexte.js).
-    const recherche = await conditionRecherche(search, { Categorie });
-    if (recherche) Object.assign(where, recherche);
-    const { count, rows } = await Produit.findAndCountAll({
+    // Recherche tolérante (voir utils/rechercheTexte.js).
+    const { count, rows } = await chercherProduits(Produit, {
+      requete: search,
       where,
       include: PRODUIT_INCLUDE,
       order: [['createdAt', 'DESC']],
+      page: Math.max(1, parseInt(page) || 1),
       limit: parseInt(limit),
-      offset,
+      Categorie,
     });
     return ok(res, {
       produits: rows,
@@ -92,17 +90,16 @@ router.get(
   '/sous-rayons/:id/produits',
   asyncHandler(async (req, res) => {
     const { page = 1, limit = 20, search } = req.query;
-    const offset = (parseInt(page) - 1) * parseInt(limit);
     const where = { sousRayonId: req.params.id, isActive: true, statutValidation: 'valide' };
-    // Recherche par mots (voir utils/rechercheTexte.js).
-    const recherche = await conditionRecherche(search, { Categorie });
-    if (recherche) Object.assign(where, recherche);
-    const { count, rows } = await Produit.findAndCountAll({
+    // Recherche tolérante (voir utils/rechercheTexte.js).
+    const { count, rows } = await chercherProduits(Produit, {
+      requete: search,
       where,
       include: PRODUIT_INCLUDE,
       order: [['createdAt', 'DESC']],
+      page: Math.max(1, parseInt(page) || 1),
       limit: parseInt(limit),
-      offset,
+      Categorie,
     });
     return ok(res, {
       produits: rows,

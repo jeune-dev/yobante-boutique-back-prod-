@@ -25,6 +25,9 @@ const Commande = sequelize.define(
     statut: {
       type: DataTypes.ENUM(
         'en_attente',
+        // Interne à l'administration : le client et le vendeur voient
+        // « en_attente » (utils/statutCommande.js).
+        'en_modification',
         'validee',
         'en_preparation',
         'expediee',

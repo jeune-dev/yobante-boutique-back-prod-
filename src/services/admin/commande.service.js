@@ -13,7 +13,7 @@ const {
   sequelize,
 } = require('../../models');
 const paginate = require('../../utils/paginate');
-const { sendCommandeStatut } = require('../../utils/mailer');
+const { sendCommandeStatut, sendRuptureStock } = require('../../utils/mailer');
 const { toCsv } = require('../../utils/csv');
 const {
   ROLES,
@@ -28,14 +28,29 @@ const logger = require('../../config/logger');
 
 // La liste n'affiche que ces champs du produit : inutile de charger toute la
 // fiche (description, images…) pour chaque ligne de chaque commande.
-const PRODUIT_LISTE = ['id', 'nom', 'prix', 'reference'];
+const PRODUIT_LISTE = ['id', 'nom', 'prix', 'reference', 'vendeurId'];
 
-const TRANSITIONS = {
-  validee: 'en_attente',
-  en_preparation: 'validee',
-  expediee: 'en_preparation',
-  livree: 'expediee',
-};
+/**
+ * Statuts que l'administration peut donner à une commande, selon son statut
+ * actuel. « en_modification » (interne, avant la validation) organise le
+ * travail : le client et le vendeur continuent de voir « en attente ».
+ * Le rejet et l'annulation ont leurs propres actions (motif obligatoire).
+ */
+const TRANSITIONS_ADMIN = Object.freeze({
+  en_attente: ['en_modification', 'validee'],
+  en_modification: ['en_attente', 'validee'],
+  validee: ['en_preparation'],
+  en_preparation: ['expediee'],
+  expediee: ['livree'],
+});
+
+/** Message envoyé au client pour chaque statut qu'il voit. */
+const MESSAGES_STATUT = Object.freeze({
+  validee: { titre: 'Commande validée', texte: 'a été validée' },
+  en_preparation: { titre: 'Commande en préparation', texte: 'est en cours de préparation' },
+  expediee: { titre: 'Commande expédiée', texte: 'a été expédiée' },
+  livree: { titre: 'Commande livrée', texte: 'a été livrée' },
+});
 
 class GestionCommandeService {
   /**
@@ -98,23 +113,74 @@ class GestionCommandeService {
       distinct: true,
     });
 
-    // Nombre de vendeurs ayant déclaré leurs produits indisponibles : la
-    // liste le signale sans ouvrir chaque commande.
-    const refus = rows.length
-      ? await AcceptationCommande.findAll({
-          where: { statut: 'refusee', commandeId: { [Op.in]: rows.map((c) => c.id) } },
-          attributes: ['commandeId', [sequelize.fn('COUNT', sequelize.col('id')), 'total']],
-          group: ['commandeId'],
-          raw: true,
-        })
-      : [];
-    const refusPar = new Map(refus.map((r) => [r.commandeId, Number(r.total) || 0]));
+    // Vendeurs concernés par chaque commande, avec leur réponse (disponible,
+    // indisponible + motif, ou pas encore répondu) : la liste l'affiche sans
+    // ouvrir chaque commande.
+    const vendeursPar = await GestionCommandeService._vendeursDesCommandes(rows);
 
     return {
       success: true,
-      commandes: rows.map((c) => ({ ...c.toJSON(), refusVendeurs: refusPar.get(c.id) ?? 0 })),
+      commandes: rows.map((c) => {
+        const vendeurs = vendeursPar.get(c.id) ?? [];
+        return {
+          ...c.toJSON(),
+          vendeurs,
+          refusVendeurs: vendeurs.filter((v) => v.statut === 'refusee').length,
+        };
+      }),
       pagination: { total: count, totalPages: Math.ceil(count / l), page: p, limit: l },
     };
+  }
+
+  /**
+   * Vendeurs de chaque commande de la liste et leur réponse.
+   * @returns {Promise<Map<string, Array>>} id commande → vendeurs
+   */
+  static async _vendeursDesCommandes(commandes) {
+    const resultat = new Map();
+    if (!commandes.length) return resultat;
+
+    const vendeurIds = new Set();
+    for (const c of commandes) {
+      for (const i of c.items || []) if (i.produit?.vendeurId) vendeurIds.add(i.produit.vendeurId);
+    }
+    if (!vendeurIds.size) return resultat;
+
+    const [vendeurs, decisions] = await Promise.all([
+      User.findAll({
+        where: { id: { [Op.in]: [...vendeurIds] } },
+        attributes: ['id', 'nom', 'prenom', 'telephone'],
+        include: [{ association: 'profilVendeur', attributes: ['nomBoutique'] }],
+      }),
+      AcceptationCommande.findAll({
+        where: { commandeId: { [Op.in]: commandes.map((c) => c.id) } },
+        attributes: ['commandeId', 'vendeurId', 'statut', 'motifRefus', 'decideLe'],
+        raw: true,
+      }),
+    ]);
+    const vendeurPar = new Map(vendeurs.map((v) => [v.id, v]));
+    const decisionPar = new Map(decisions.map((d) => [`${d.commandeId}:${d.vendeurId}`, d]));
+
+    for (const c of commandes) {
+      const ids = [...new Set((c.items || []).map((i) => i.produit?.vendeurId).filter(Boolean))];
+      resultat.set(
+        c.id,
+        ids.map((vendeurId) => {
+          const v = vendeurPar.get(vendeurId);
+          const d = decisionPar.get(`${c.id}:${vendeurId}`);
+          return {
+            vendeurId,
+            vendeur: [v?.prenom, v?.nom].filter(Boolean).join(' ') || null,
+            boutique: v?.profilVendeur?.nomBoutique ?? null,
+            telephone: v?.telephone ?? null,
+            statut: d?.statut ?? 'en_attente',
+            motifRefus: d?.motifRefus ?? null,
+            decideLe: d?.decideLe ?? null,
+          };
+        })
+      );
+    }
+    return resultat;
   }
 
   /**
@@ -128,11 +194,14 @@ class GestionCommandeService {
       include: [{ model: Produit, as: 'produit', attributes: ['id', 'nom', 'vendeurId'] }],
     });
     const produitsPar = new Map();
+    const produitIdsPar = new Map();
     for (const l of lignes) {
       const vendeurId = l.produit?.vendeurId;
       if (!vendeurId) continue;
       if (!produitsPar.has(vendeurId)) produitsPar.set(vendeurId, []);
       produitsPar.get(vendeurId).push(`${l.quantite} × ${l.produit.nom}`);
+      if (!produitIdsPar.has(vendeurId)) produitIdsPar.set(vendeurId, []);
+      produitIdsPar.get(vendeurId).push(l.produit.id);
     }
     const ids = [...produitsPar.keys()];
     if (!ids.length) return [];
@@ -161,6 +230,7 @@ class GestionCommandeService {
         boutique: v?.profilVendeur?.nomBoutique ?? null,
         telephone: v?.telephone ?? null,
         produits: produitsPar.get(vendeurId),
+        produitIds: produitIdsPar.get(vendeurId),
         statut: d?.statut ?? 'en_attente',
         motifRefus: d?.motifRefus ?? null,
         decideLe: d?.decideLe ?? null,
@@ -190,35 +260,75 @@ class GestionCommandeService {
     return { success: true, commande };
   }
 
+  /**
+   * Change le statut d'une commande et prévient le client (notification push,
+   * notification dans l'application, email) — sauf pour un statut interne,
+   * qu'il ne voit pas.
+   */
   static async _transition(id, statutAttendu, nouveauStatut, extra = {}) {
     const commande = await Commande.scope('administration').findByPk(id, {
       include: [{ model: User, as: 'user' }],
     });
     if (!commande) {
-      return { success: false, message: 'Commande introuvable' };
+      return { success: false, status: 404, message: 'Commande introuvable' };
     }
 
-    if (statutAttendu && commande.statut !== statutAttendu) {
+    const attendus = [].concat(statutAttendu || []);
+    if (attendus.length && !attendus.includes(commande.statut)) {
       return {
         success: false,
-        message: `La commande doit être en statut "${statutAttendu}" pour cette action`,
+        message: `La commande doit être en statut "${attendus.join('" ou "')}" pour cette action`,
       };
     }
 
     await commande.update({ statut: nouveauStatut, ...extra });
 
-    if (commande.user) {
-      await sendCommandeStatut(commande.user.email, commande, nouveauStatut);
+    const annonce = MESSAGES_STATUT[nouveauStatut];
+    if (annonce) {
+      await GestionCommandeService._notifierClient(commande, {
+        titre: annonce.titre,
+        message: `Votre commande ${commande.reference} ${annonce.texte}.`,
+        type: `commande_${nouveauStatut}`,
+        statutEmail: nouveauStatut,
+      });
     }
 
     return { success: true, message: 'Commande mise à jour avec succès', commande };
   }
 
+  /** Statuts proposés à l'administration pour une commande dans ce statut. */
+  static statutsPossibles(statut) {
+    return TRANSITIONS_ADMIN[statut] ?? [];
+  }
+
+  /**
+   * Changement de statut depuis la fiche commande de l'administration.
+   * Le client est prévenu par tous les canaux, sauf pour « en modification »
+   * (interne) et le retour « en attente » qui le suit (il n'a rien vu changer).
+   */
+  static async changerStatut(id, statut, { note } = {}) {
+    const commande = await Commande.scope('administration').findByPk(id, {
+      attributes: ['id', 'statut'],
+    });
+    if (!commande) return { success: false, status: 404, message: 'Commande introuvable' };
+
+    const possibles = GestionCommandeService.statutsPossibles(commande.statut);
+    if (!possibles.includes(statut)) {
+      return {
+        success: false,
+        status: 400,
+        message: `Une commande « ${commande.statut} » ne peut pas passer en « ${statut} »`,
+      };
+    }
+    const extra = note?.trim() ? { noteAdmin: note.trim() } : {};
+    return GestionCommandeService._transition(id, commande.statut, statut, extra);
+  }
+
   static validerCommande(id, noteAdmin) {
     return GestionCommandeService._transition(
       id,
-      'en_attente',
-      'validee',
+      [STATUT_COMMANDE.EN_ATTENTE, STATUT_COMMANDE.EN_MODIFICATION],
+      STATUT_COMMANDE.VALIDEE,
       noteAdmin ? { noteAdmin } : {}
     );
   }
@@ -232,8 +342,19 @@ class GestionCommandeService {
     const result = await CommandeService.rejeterCommande(id, { motif });
     if (!result.success) return result;
 
+    // Client prévenu par tous les canaux, avec le motif.
     const user = await User.findByPk(result.commande.userId, { attributes: ['email'] });
-    if (user) await sendCommandeStatut(user.email, result.commande, STATUT_COMMANDE.REJETEE);
+    await GestionCommandeService._notifierClient(
+      { ...(result.commande.get?.({ plain: true }) ?? result.commande), user },
+      {
+        titre: 'Commande rejetée',
+        message: `Votre commande ${result.commande.reference} a été rejetée.${
+          motif ? ` Motif : ${motif}` : ''
+        }`,
+        type: 'commande_rejetee',
+        statutEmail: STATUT_COMMANDE.REJETEE,
+      }
+    );
 
     return result;
   }
@@ -597,6 +718,143 @@ class GestionCommandeService {
       success: true,
       message: 'Commande modifiée',
       changements,
+      commande: rechargee.commande,
+    };
+  }
+
+  /**
+   * Produits d'une commande déclarés en rupture de stock par l'administration,
+   * en général après le refus d'un vendeur.
+   *
+   * C'est ici, et pas au refus du vendeur, que le client est prévenu :
+   * notification (push + application), email, et motif visible sur sa page
+   * commande. Les lignes restent affichées « en rupture », ne sont plus
+   * facturées, et le stock du produit passe à 0.
+   */
+  static async marquerRupture(id, { produitIds = [], motif, adminId } = {}) {
+    const raison = String(motif || '').trim();
+    if (!raison) {
+      return { success: false, status: 400, message: 'Le motif est obligatoire' };
+    }
+
+    const commande = await Commande.scope('administration').findByPk(id, {
+      include: [
+        {
+          model: CommandeItem,
+          as: 'items',
+          include: [{ model: Produit, as: 'produit', attributes: ['id', 'nom'] }],
+        },
+        { model: User, as: 'user', attributes: ['id', 'email'] },
+      ],
+    });
+    if (!commande) return { success: false, status: 404, message: 'Commande introuvable' };
+
+    if (
+      [STATUT_COMMANDE.LIVREE, STATUT_COMMANDE.ANNULEE, STATUT_COMMANDE.REJETEE].includes(
+        commande.statut
+      )
+    ) {
+      return {
+        success: false,
+        status: 400,
+        message: 'Une commande livrée, annulée ou rejetée ne peut plus être modifiée',
+      };
+    }
+
+    const lignes = commande.items.filter((i) => produitIds.includes(i.produitId));
+    if (lignes.length !== new Set(produitIds).size) {
+      return { success: false, status: 400, message: 'Produit absent de cette commande' };
+    }
+    const nouvelles = lignes.filter((l) => !l.enRupture);
+    if (!nouvelles.length) {
+      return { success: false, status: 400, message: 'Ces produits sont déjà en rupture' };
+    }
+
+    const maintenant = new Date();
+    const transaction = await sequelize.transaction();
+    try {
+      for (const ligne of nouvelles) {
+        await ligne.update(
+          { enRupture: true, motifRupture: raison, ruptureLe: maintenant },
+          { transaction }
+        );
+        // Rupture de stock : le produit n'est plus commandable.
+        await Produit.update({ stock: 0 }, { where: { id: ligne.produitId }, transaction });
+      }
+
+      // Le client ne paie que ce qui sera livré. Plus rien à livrer : plus de
+      // frais de livraison non plus.
+      const restantes = commande.items.filter((i) => !i.enRupture);
+      const articles = restantes.reduce((somme, i) => somme + Number(i.sousTotal || 0), 0);
+      const nouveauMontant = restantes.length
+        ? Number((articles + Number(commande.fraisLivraison || 0)).toFixed(2))
+        : 0;
+
+      await commande.update(
+        {
+          montantTotal: nouveauMontant,
+          modifieeAt: maintenant,
+          modifieePar: adminId || null,
+          historiqueModifications: [
+            ...(commande.historiqueModifications || []),
+            {
+              date: maintenant.toISOString(),
+              parQui: ORIGINE_ACTION.ADMIN,
+              adminId: adminId || null,
+              motif: raison,
+              changements: [
+                ...nouvelles.map((l) => ({
+                  champ: 'rupture',
+                  produitId: l.produitId,
+                  produit: l.produit?.nom,
+                  avant: l.quantite,
+                  apres: 0,
+                })),
+                {
+                  champ: 'montantTotal',
+                  avant: Number(commande.montantTotal),
+                  apres: nouveauMontant,
+                },
+              ],
+            },
+          ],
+        },
+        { transaction }
+      );
+      await transaction.commit();
+    } catch (err) {
+      await transaction.rollback();
+      throw err;
+    }
+
+    // Client prévenu : notification (push + application) et email, avec le motif.
+    const noms = nouvelles.map((l) => l.produit?.nom || 'Produit');
+    const toutEnRupture = commande.items.every((i) => i.enRupture);
+    await NotificationService.emettre({
+      userId: commande.userId,
+      titre: noms.length > 1 ? 'Produits en rupture de stock' : 'Produit en rupture de stock',
+      message: `${noms.join(', ')} : en rupture de stock dans votre commande ${commande.reference}. Motif : ${raison}`,
+      type: 'commande_rupture',
+      donnees: { commandeId: commande.id, reference: commande.reference },
+    });
+    if (commande.user?.email) {
+      try {
+        await sendRuptureStock(commande.user.email, commande, { produits: noms, motif: raison });
+      } catch (err) {
+        logger.error('[Commande] Email de rupture non envoyé', {
+          commandeId: commande.id,
+          error: err.message,
+        });
+      }
+    }
+
+    const rechargee = await GestionCommandeService.getCommandeById(id);
+    return {
+      success: true,
+      message: toutEnRupture
+        ? 'Client prévenu. Plus aucun produit à livrer : pensez à annuler la commande.'
+        : 'Client prévenu de la rupture de stock',
+      toutEnRupture,
       commande: rechargee.commande,
     };
   }

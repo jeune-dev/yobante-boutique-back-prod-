@@ -70,7 +70,34 @@ class GestionUserService {
     );
   }
 
-  static async listerClients({ page, limit, search, isActive } = {}) {
+  /**
+   * Segments de la base client, mêmes règles que les indicateurs clients
+   * (analytique.service, « Fidélité ») : un clic sur un indicateur ouvre la
+   * liste des clients qu'il compte.
+   */
+  static SEGMENTS = Object.freeze({
+    acheteurs: 'COUNT(c.id) > 0',
+    reachat: 'COUNT(c.id) > 1',
+    fideles: 'COUNT(c.id) > 0 AND MAX(c."createdAt") >= NOW() - INTERVAL \'90 days\'',
+    inactifs: 'COUNT(c.id) > 0 AND MAX(c."createdAt") < NOW() - INTERVAL \'90 days\'',
+    sans_achat: 'COUNT(c.id) = 0',
+  });
+
+  /** Date « AAAA-MM-JJ » valide, sinon null (jamais injectée telle quelle). */
+  static _jour(valeur) {
+    if (typeof valeur !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(valeur)) return null;
+    return Number.isNaN(Date.parse(`${valeur}T00:00:00Z`)) ? null : valeur;
+  }
+
+  static async listerClients({
+    page,
+    limit,
+    search,
+    isActive,
+    segment,
+    commandeDebut,
+    commandeFin,
+  } = {}) {
     const { page: p, limit: l, offset } = paginate(page, limit);
     // Les comptes supprimés (anonymisés) n'apparaissent plus.
     const where = { role: ROLES.CLIENT, supprimeLe: null };
@@ -82,6 +109,36 @@ class GestionUserService {
         { nom: { [Op.iLike]: `%${search}%` } },
         { prenom: { [Op.iLike]: `%${search}%` } },
         { email: { [Op.iLike]: `%${search}%` } },
+      ];
+    }
+    // Segment (clients fidèles, inactifs…) : la condition vient d'une liste
+    // fermée, jamais de la requête — aucune injection possible.
+    const condition = GestionUserService.SEGMENTS[segment];
+    if (condition) {
+      where[Op.and] = [
+        sequelize.literal(`"User"."id" IN (
+          SELECT u.id FROM users u
+          LEFT JOIN commandes c ON c."userId" = u.id
+          WHERE u.role = '${ROLES.CLIENT}'
+          GROUP BY u.id
+          HAVING ${condition}
+        )`),
+      ];
+    }
+    // « Clients actifs » du tableau de bord : ont commandé entre deux dates
+    // (bornes incluses, comme les indicateurs).
+    const debut = GestionUserService._jour(commandeDebut);
+    const fin = GestionUserService._jour(commandeFin);
+    if (debut || fin) {
+      const bornes = [
+        debut && `c."createdAt" >= ${sequelize.escape(debut)}::date`,
+        fin && `c."createdAt" < ${sequelize.escape(fin)}::date + INTERVAL '1 day'`,
+      ].filter(Boolean);
+      where[Op.and] = [
+        ...(where[Op.and] || []),
+        sequelize.literal(`"User"."id" IN (
+          SELECT c."userId" FROM commandes c WHERE ${bornes.join(' AND ')}
+        )`),
       ];
     }
 

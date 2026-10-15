@@ -31,7 +31,14 @@ exports.getOne = asyncHandler(async (req, res) => {
   );
   return ok(
     res,
-    { commande: { ...result.commande.toJSON(), disponibilitesVendeurs } },
+    {
+      commande: {
+        ...result.commande.toJSON(),
+        disponibilitesVendeurs,
+        // Statuts proposés dans le sélecteur de la fiche commande.
+        statutsPossibles: GestionCommandeService.statutsPossibles(result.commande.statut),
+      },
+    },
     'Commande récupérée'
   );
 });
@@ -60,6 +67,26 @@ exports.modifier = asyncHandler(async (req, res) => {
   return ok(res, { commande: result.commande, changements: result.changements }, result.message);
 });
 
+/**
+ * PATCH /admin/commandes/:id/rupture — produits en rupture de stock.
+ * Le client est prévenu (notification push, email, page commande) avec le motif.
+ */
+exports.marquerRupture = asyncHandler(async (req, res) => {
+  const result = await GestionCommandeService.marquerRupture(req.params.id, {
+    ...req.body,
+    adminId: req.user?.id,
+  });
+  if (!result.success) {
+    if (result.status === 404) throw new NotFoundError(result.message);
+    throw new BadRequestError(result.message);
+  }
+  return ok(
+    res,
+    { commande: result.commande, toutEnRupture: result.toutEnRupture },
+    result.message
+  );
+});
+
 exports.getFiabiliteVendeurs = asyncHandler(async (req, res) => {
   const result = await GestionCommandeService.getFiabiliteVendeurs(req.query);
   return ok(res, { vendeurs: result.vendeurs }, 'Fiabilité des vendeurs');
@@ -81,6 +108,22 @@ exports.valider = asyncHandler(async (req, res) => {
 exports.rejeter = asyncHandler(async (req, res) => {
   const motif = req.body.motif ?? req.body.raison;
   const result = await GestionCommandeService.rejeterCommande(req.params.id, motif);
+  if (!result.success) {
+    if (result.status === 404) throw new NotFoundError(result.message);
+    throw new BadRequestError(result.message);
+  }
+  return ok(res, { commande: result.commande }, result.message);
+});
+
+/**
+ * PATCH /admin/commandes/:id/statut — { statut, note? }
+ * Statut choisi sur la fiche commande ; le client est notifié (sauf statut
+ * interne « en_modification »).
+ */
+exports.changerStatut = asyncHandler(async (req, res) => {
+  const result = await GestionCommandeService.changerStatut(req.params.id, req.body.statut, {
+    note: req.body.note,
+  });
   if (!result.success) {
     if (result.status === 404) throw new NotFoundError(result.message);
     throw new BadRequestError(result.message);

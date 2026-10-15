@@ -30,6 +30,22 @@ const CommandeItem = sequelize.define(
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
     },
+    // Produit déclaré en rupture de stock par l'administration (après refus
+    // du vendeur) : la ligne reste visible du client, avec le motif, mais
+    // n'est plus facturée ni livrée.
+    enRupture: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    motifRupture: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    ruptureLe: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
     createdAt: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,

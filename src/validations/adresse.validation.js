@@ -4,6 +4,10 @@
 const Joi = require('joi');
 
 const adresseSchema = Joi.object({
+  // Nom de l'adresse (« Chez papa »), facultatif.
+  libelle: Joi.string().trim().max(60).allow('', null).optional(),
+  // false : adresse utilisée pour une commande sans l'enregistrer.
+  enregistrer: Joi.boolean().optional(),
   nomComplet: Joi.string().trim().max(100).required(),
   telephone: Joi.string().trim().required(),
   rue: Joi.string().trim().required(),

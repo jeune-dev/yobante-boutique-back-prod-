@@ -31,6 +31,19 @@ exports.getOne = asyncHandler(async (req, res) => {
 });
 
 /**
+ * GET /api/produits/disponibilites?ids=a,b,c
+ * Stock actuel des produits du panier.
+ */
+exports.getDisponibilites = asyncHandler(async (req, res) => {
+  const brut = req.query.ids;
+  const ids = (Array.isArray(brut) ? brut.join(',') : String(brut ?? ''))
+    .split(',')
+    .filter(Boolean);
+  const result = await ProduitService.getDisponibilites(ids);
+  return ok(res, { disponibilites: result.disponibilites }, 'Disponibilités des produits');
+});
+
+/**
  * GET /api/produits/featured
  * Récupérer les produits en vedette
  */

@@ -35,6 +35,9 @@
             "quantite": 2,
             "prixUnitaire": "1500.00",
             "sousTotal": "3000.00",
+            "enRupture": true,
+            "motifRupture": "motifRupture-exemple",
+            "ruptureLe": "2026-09-20T10:00:00.000Z",
             "createdAt": "2026-09-20T10:00:00.000Z",
             "produit": {
               "id": "20000000-0000-4000-8000-000000000001",
@@ -80,6 +83,8 @@
           "pays": "Sénégal",
           "codePostal": "codePostal-exemple",
           "isDefault": true,
+          "libelle": "libelle-exemple",
+          "estEnregistree": true,
           "createdAt": "2026-09-20T10:00:00.000Z",
           "updatedAt": "2026-09-20T10:00:00.000Z"
         },

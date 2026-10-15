@@ -10,6 +10,9 @@ const ROLES = Object.freeze({
 
 const STATUT_COMMANDE = Object.freeze({
   EN_ATTENTE: 'en_attente',
+  // Interne à l'administration (avant la validation) : jamais montré au client
+  // ni au vendeur, qui voient « en_attente ». Voir utils/statutCommande.js.
+  EN_MODIFICATION: 'en_modification',
   VALIDEE: 'validee',
   EN_PREPARATION: 'en_preparation',
   EXPEDIEE: 'expediee',

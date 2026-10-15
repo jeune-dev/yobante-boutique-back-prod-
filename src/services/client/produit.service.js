@@ -5,7 +5,7 @@ const { STATUT_VALIDATION_PRODUIT } = require('../../constants');
 const { Op } = require('sequelize');
 const { Produit, Categorie, Avis, User, ProfilVendeur } = require('../../models');
 const paginate = require('../../utils/paginate');
-const { conditionRecherche } = require('../../utils/rechercheTexte');
+const { chercherProduits } = require('../../utils/rechercheTexte');
 
 // Include commun : catégorie + vendeur (avec sa boutique) pour enrichir les
 // produits renvoyés au client (nom boutique, localisation, contact vendeur).
@@ -38,7 +38,7 @@ class ProduitService {
     search,
     tri,
   } = {}) {
-    const { page: p, limit: l, offset } = paginate(page, limit);
+    const { page: p, limit: l } = paginate(page, limit);
 
     const where = { ...VISIBLE_AU_PUBLIC };
     if (categorieId) where.categorieId = categorieId;
@@ -50,9 +50,6 @@ class ProduitService {
       if (prixMin) where.prix[Op.gte] = prixMin;
       if (prixMax) where.prix[Op.lte] = prixMax;
     }
-    // Recherche par mots (voir utils/rechercheTexte.js).
-    const recherche = await conditionRecherche(search, { Categorie });
-    if (recherche) Object.assign(where, recherche);
 
     const order = {
       prix_asc: [['prix', 'ASC']],
@@ -60,13 +57,18 @@ class ProduitService {
       recent: [['createdAt', 'DESC']],
     }[tri] || [['createdAt', 'DESC']];
 
-    const { count, rows } = await Produit.findAndCountAll({
+    // Recherche tolérante (voir utils/rechercheTexte.js) ; sans recherche,
+    // simple liste paginée.
+    const { count, rows } = await chercherProduits(Produit, {
+      requete: search,
       where,
       include: CATALOGUE_INCLUDE,
       attributes: { exclude: ['prixAchat'] },
       order,
+      page: p,
       limit: l,
-      offset,
+      Categorie,
+      classer: !tri,
     });
 
     return {
@@ -140,11 +142,10 @@ class ProduitService {
   }
 
   static async rechercherProduits({ query, page, limit } = {}) {
-    const { page: p, limit: l, offset } = paginate(page, limit);
+    const { page: p, limit: l } = paginate(page, limit);
 
     // Requête vide : rien à chercher, plutôt que tout le catalogue.
-    const recherche = await conditionRecherche(query, { Categorie });
-    if (!recherche) {
+    if (!String(query || '').trim()) {
       return {
         success: true,
         produits: [],
@@ -152,18 +153,50 @@ class ProduitService {
       };
     }
 
-    const { count, rows } = await Produit.findAndCountAll({
-      where: { ...VISIBLE_AU_PUBLIC, ...recherche },
+    // Recherche tolérante : accents, variantes, fautes de frappe ; résultats
+    // classés par pertinence (voir utils/rechercheTexte.js).
+    const { count, rows } = await chercherProduits(Produit, {
+      requete: query,
+      where: { ...VISIBLE_AU_PUBLIC },
       include: CATALOGUE_INCLUDE,
       order: [['createdAt', 'DESC']],
+      page: p,
       limit: l,
-      offset,
+      Categorie,
     });
 
     return {
       success: true,
       produits: rows,
       pagination: { total: count, totalPages: Math.ceil(count / l), page: p, limit: l },
+    };
+  }
+
+  /**
+   * Stock actuel des produits d'un panier (le panier vit sur le téléphone) :
+   * l'application signale les ruptures et bloque la commande avant l'envoi.
+   * Un produit retiré de la vente ou inconnu est renvoyé « non disponible ».
+   */
+  static async getDisponibilites(ids = []) {
+    const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const valides = [
+      ...new Set(ids.map((id) => String(id).trim()).filter((id) => UUID.test(id))),
+    ].slice(0, 100);
+    if (!valides.length) return { success: true, disponibilites: [] };
+
+    const produits = await Produit.findAll({
+      where: { id: valides, ...VISIBLE_AU_PUBLIC },
+      attributes: ['id', 'stock'],
+    });
+    const parId = new Map(produits.map((p) => [p.id, Math.max(0, Number(p.stock) || 0)]));
+    return {
+      success: true,
+      disponibilites: valides.map((id) => ({
+        id,
+        disponible: parId.has(id),
+        stock: parId.get(id) ?? 0,
+        enRupture: !parId.has(id) || parId.get(id) <= 0,
+      })),
     };
   }
 

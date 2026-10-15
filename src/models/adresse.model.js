@@ -41,9 +41,23 @@ const Adresse = sequelize.define(
       type: DataTypes.STRING(20),
       allowNull: true,
     },
+    // Adresse par défaut = domicile (« Chez moi »), une seule par client.
     isDefault: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
+    },
+    // Nom donné par le client (« Chez papa », « Bureau »), facultatif.
+    libelle: {
+      type: DataTypes.STRING(60),
+      allowNull: true,
+    },
+    // Faux : adresse d'une seule commande (le client n'a pas voulu la garder)
+    // ou ancienne version conservée pour l'historique des commandes. Elle
+    // n'apparaît pas dans le carnet d'adresses.
+    estEnregistree: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
     },
     createdAt: {
       type: DataTypes.DATE,

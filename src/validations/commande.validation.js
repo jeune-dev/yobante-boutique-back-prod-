@@ -104,6 +104,28 @@ const annulerCommandeSchema = Joi.object({
   vendeurResponsableId: Joi.string().uuid().allow(null).optional(),
 });
 
+// Statut choisi par l'administration sur la fiche commande.
+const changerStatutSchema = Joi.object({
+  statut: Joi.string()
+    .valid('en_attente', 'en_modification', 'validee', 'en_preparation', 'expediee', 'livree')
+    .required()
+    .messages({ 'any.only': 'Statut inconnu', 'any.required': 'Le statut est obligatoire' }),
+  note: Joi.string().trim().max(500).allow('', null).optional(),
+});
+
+// Produits d'une commande déclarés en rupture de stock par l'administration.
+const marquerRuptureSchema = Joi.object({
+  produitIds: Joi.array().items(Joi.string().uuid()).min(1).required().messages({
+    'array.min': 'Sélectionnez au moins un produit',
+    'any.required': 'Sélectionnez au moins un produit',
+  }),
+  motif: Joi.string().trim().min(3).max(500).required().messages({
+    'string.empty': 'Le motif est obligatoire',
+    'any.required': 'Le motif est obligatoire',
+    'string.min': 'Le motif est trop court',
+  }),
+});
+
 const modifierCommandeSchema = Joi.object({
   motif: Joi.string().trim().min(3).max(500).required().messages({
     'string.empty': 'Le motif de modification est obligatoire',
@@ -141,4 +163,6 @@ module.exports = {
   creerCommandeAdminSchema,
   annulerCommandeSchema,
   modifierCommandeSchema,
+  marquerRuptureSchema,
+  changerStatutSchema,
 };

@@ -11,6 +11,7 @@ const {
 const paginate = require('../../utils/paginate');
 const { round2 } = require('../../utils/money');
 const { STATUT_COMMANDE, ROLES } = require('../../constants');
+const { statutPublic, statutsReels } = require('../../utils/statutCommande');
 const NotificationService = require('../notification');
 const { sendMail } = require('../../utils/mailer');
 const logger = require('../../config/logger');
@@ -21,7 +22,11 @@ const lienCommandeAdmin = (id) =>
 
 // Un vendeur décide tant que la commande n'est pas engagée en logistique :
 // au-delà, les articles sont déjà préparés ou partis.
-const STATUTS_DECIDABLES = [STATUT_COMMANDE.EN_ATTENTE, STATUT_COMMANDE.VALIDEE];
+const STATUTS_DECIDABLES = [
+  STATUT_COMMANDE.EN_ATTENTE,
+  STATUT_COMMANDE.EN_MODIFICATION,
+  STATUT_COMMANDE.VALIDEE,
+];
 
 // Une commande annulée ne compte ni dans le chiffre d'affaires ni dans les ventes.
 const STATUTS_VENDUS = Object.values(STATUT_COMMANDE).filter((s) => s !== STATUT_COMMANDE.ANNULEE);
@@ -69,7 +74,8 @@ class VendeurCommandeService {
     }
 
     const where = { id: { [Op.in]: commandeIds } };
-    if (statut) where.statut = statut;
+    // « en attente » couvre aussi les commandes en modification (interne).
+    if (statut) where.statut = { [Op.in]: statutsReels(statutPublic(statut)) };
 
     // Pagination en deux temps : on sélectionne d'abord les ids de la page, puis
     // on charge les lignes sans `limit`. Combiner `limit` et un include hasMany
@@ -130,6 +136,7 @@ class VendeurCommandeService {
       const decision = decisionPar.get(json.id);
       return {
         ...json,
+        statut: statutPublic(json.statut),
         montantVendeur,
         acceptation: decision
           ? {
@@ -194,6 +201,7 @@ class VendeurCommandeService {
       success: true,
       commande: {
         ...json,
+        statut: statutPublic(json.statut),
         montantVendeur,
         acceptation: decision ? decision.toJSON() : null,
         decisionPossible: !decision && STATUTS_DECIDABLES.includes(json.statut),
@@ -455,7 +463,13 @@ class VendeurCommandeService {
 
     const enAttente = await Commande.count({
       where: {
-        statut: { [Op.in]: [STATUT_COMMANDE.EN_ATTENTE, STATUT_COMMANDE.VALIDEE] },
+        statut: {
+          [Op.in]: [
+            STATUT_COMMANDE.EN_ATTENTE,
+            STATUT_COMMANDE.EN_MODIFICATION,
+            STATUT_COMMANDE.VALIDEE,
+          ],
+        },
         id: { [Op.in]: await this.#commandeIdsDuVendeur(vendeurId) },
       },
     });

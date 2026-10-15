@@ -19,6 +19,7 @@ const {
 } = require('../../constants');
 const { sousTotal: calcSousTotal, round2 } = require('../../utils/money');
 const paginate = require('../../utils/paginate');
+const { commandePublique, statutPublic, statutsReels } = require('../../utils/statutCommande');
 const { sendCommandeConfirmation } = require('../../utils/mailer');
 const { acquireXact } = require('../../utils/advisoryLock');
 const logger = require('../../config/logger');
@@ -282,7 +283,11 @@ class CommandeService {
     // `?statut=` est envoyé par le mobile (filtre de l'écran Mes commandes) ;
     // il était ignoré. Une valeur hors énumération ne filtre rien.
     const where = { userId };
-    if (Object.values(STATUT_COMMANDE).includes(statut)) where.statut = statut;
+    // « en attente » couvre aussi les commandes en modification (statut
+    // interne à l'administration, jamais montré au client).
+    if (Object.values(STATUT_COMMANDE).includes(statut)) {
+      where.statut = { [Op.in]: statutsReels(statutPublic(statut)) };
+    }
 
     const { count, rows } = await Commande.findAndCountAll({
       where,
@@ -300,7 +305,7 @@ class CommandeService {
 
     return {
       success: true,
-      commandes: rows,
+      commandes: rows.map(commandePublique),
       pagination: { total: count, totalPages: Math.ceil(count / l), page: p, limit: l },
     };
   }
@@ -322,7 +327,7 @@ class CommandeService {
     if (commande.userId !== userId)
       return { success: false, status: 403, message: 'Cette commande ne vous appartient pas' };
 
-    return { success: true, commande };
+    return { success: true, commande: commandePublique(commande) };
   }
 
   static async annulerCommande(userId, commandeId) {
@@ -333,7 +338,8 @@ class CommandeService {
     if (!commande) return { success: false, status: 404, message: 'Commande introuvable' };
     if (commande.userId !== userId)
       return { success: false, status: 403, message: 'Cette commande ne vous appartient pas' };
-    if (commande.statut !== STATUT_COMMANDE.EN_ATTENTE) {
+    // En modification (statut interne) = en attente pour le client.
+    if (statutPublic(commande.statut) !== STATUT_COMMANDE.EN_ATTENTE) {
       return {
         success: false,
         status: 400,
@@ -369,7 +375,8 @@ class CommandeService {
     if (!commande) {
       return { success: false, status: 404, message: 'Commande introuvable' };
     }
-    if (commande.statut !== STATUT_COMMANDE.EN_ATTENTE) {
+    // En modification (statut interne) = en attente pour le client.
+    if (statutPublic(commande.statut) !== STATUT_COMMANDE.EN_ATTENTE) {
       return {
         success: false,
         status: 400,
@@ -383,7 +390,10 @@ class CommandeService {
       // statut, rien n'est modifié et le stock n'est pas restauré deux fois.
       const [modifiees] = await Commande.update(
         { statut: STATUT_COMMANDE.REJETEE, motifRejet: motif || null },
-        { where: { id: commandeId, statut: STATUT_COMMANDE.EN_ATTENTE }, transaction: t }
+        {
+          where: { id: commandeId, statut: { [Op.in]: statutsReels(STATUT_COMMANDE.EN_ATTENTE) } },
+          transaction: t,
+        }
       );
       if (modifiees === 0) {
         await t.rollback();
