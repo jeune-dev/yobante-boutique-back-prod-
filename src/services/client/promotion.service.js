@@ -149,9 +149,16 @@ class PromotionClientService {
   static async getPromotionsGroupees() {
     const sections = ['nos_promos_du_moment', 'a_ne_pas_rater', 'nos_promos_a_venir'];
     const result = {};
+    const now = new Date();
     for (const section of sections) {
+      // Une promotion terminée n'apparaît plus nulle part ; une promotion pas
+      // encore commencée n'apparaît que dans « à venir ».
+      const periode = [{ [Op.or]: [{ dateFin: null }, { dateFin: { [Op.gte]: now } }] }];
+      if (section !== 'nos_promos_a_venir') {
+        periode.push({ [Op.or]: [{ dateDebut: null }, { dateDebut: { [Op.lte]: now } }] });
+      }
       const promos = await Promotion.findAll({
-        where: { section, isActive: true },
+        where: { section, isActive: true, [Op.and]: periode },
         include: [
           {
             model: Produit,

@@ -10,6 +10,7 @@
  * admin.commande.rejet.db.test.js (DB_IT=1).
  */
 const request = require('supertest');
+const { Op } = require('sequelize');
 const jwt = require('jsonwebtoken');
 
 jest.mock('../../src/models', () => {
@@ -83,8 +84,11 @@ describe('PATCH /api/v1/admin/commandes/:id/rejeter', () => {
     User.findByPk.mockImplementation(async (id) => COMPTES[id] || null);
     Commande.findByPk.mockImplementation(async (id) => (id === ID.COMMANDE ? { ...commande } : null));
     // Mise à jour conditionnelle (where statut = en_attente), comme en SQL.
+    // Le service filtre sur une liste ({ [Op.in]: [en_attente, en_modification] }) :
+    // « en modification » est un statut interne qui vaut « en attente ».
     Commande.update.mockImplementation(async (valeurs, { where }) => {
-      if (where.id !== commande.id || where.statut !== commande.statut) return [0];
+      const admis = where.statut?.[Op.in] ?? [where.statut];
+      if (where.id !== commande.id || !admis.includes(commande.statut)) return [0];
       Object.assign(commande, valeurs);
       return [1];
     });
@@ -105,7 +109,10 @@ describe('PATCH /api/v1/admin/commandes/:id/rejeter', () => {
 
     expect(Commande.update).toHaveBeenCalledWith(
       { statut: 'rejetee', motifRejet: 'Stock insuffisant' },
-      expect.objectContaining({ where: { id: ID.COMMANDE, statut: 'en_attente' }, transaction })
+      expect.objectContaining({
+        where: { id: ID.COMMANDE, statut: { [Op.in]: ['en_attente', 'en_modification'] } },
+        transaction,
+      })
     );
     expect(stockRestaure()).toEqual([
       { champ: 'stock', by: 3, produitId: ID.PA, dansTransaction: true },
@@ -114,6 +121,14 @@ describe('PATCH /api/v1/admin/commandes/:id/rejeter', () => {
     expect(transaction.commit).toHaveBeenCalledTimes(1);
     expect(transaction.rollback).not.toHaveBeenCalled();
     expect(sendCommandeStatut).toHaveBeenCalledWith('fatou@it.test', expect.objectContaining({ id: ID.COMMANDE }), 'rejetee');
+  });
+
+  it('commande « en modification » (statut interne) : rejetable comme en attente', async () => {
+    commande.statut = 'en_modification';
+    const res = await rejeter({ motif: 'Client injoignable' });
+    expect(res.status).toBe(200);
+    expect(commande).toMatchObject({ statut: 'rejetee', motifRejet: 'Client injoignable' });
+    expect(Produit.increment).toHaveBeenCalledTimes(2);
   });
 
   it('{ raison } (ancien nom) reste accepté comme alias de motif', async () => {
