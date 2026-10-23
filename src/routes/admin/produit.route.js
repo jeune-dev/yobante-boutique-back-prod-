@@ -11,6 +11,7 @@ const {
   createProduitSchema,
   updateProduitSchema,
   updateStockSchema,
+  mouvementsStockQuerySchema,
 } = require('../../validations/produit.validation');
 
 router.get('/', adminMiddleware, ctrl.getAll);
@@ -31,6 +32,13 @@ router.put(
 );
 router.delete('/:id', adminMiddleware, ctrl.remove);
 router.patch('/:id/stock', adminMiddleware, validate(updateStockSchema), ctrl.updateStock);
+router.get(
+  '/:id/mouvements-stock',
+  adminMiddleware,
+  validate(mouvementsStockQuerySchema, 'query'),
+  ctrl.getMouvementsStock
+);
+router.get('/:id/commandes', adminMiddleware, ctrl.getCommandesDuProduit);
 router.patch('/:id/featured', adminMiddleware, ctrl.toggleFeatured);
 router.patch('/:id/visibilite', adminMiddleware, ctrl.toggleVisibilite);
 router.get('/validation/liste', adminMiddleware, ctrl.getAValider);

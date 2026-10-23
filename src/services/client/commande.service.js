@@ -21,6 +21,7 @@ const { sendCommandeConfirmation } = require('../../utils/mailer');
 const { acquireXact } = require('../../utils/advisoryLock');
 const logger = require('../../config/logger');
 const NotificationService = require('../notification');
+const { tracerMouvementsCommande } = require('../mouvementStock.service');
 
 function _genererReference() {
   return `CMD-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -186,6 +187,19 @@ class CommandeService {
 
       await CommandeItem.bulkCreate(lignes, { transaction: t });
 
+      // Trace des sorties de stock, dans la MÊME transaction que la
+      // décrémentation : un échec ici annule aussi la commande.
+      await tracerMouvementsCommande(
+        {
+          commandeId: commande.id,
+          clientId: userId,
+          evenement: 'creation',
+          auteurId,
+          lignes: lignes.map((l) => ({ produitId: l.produitId, quantite: l.quantite })),
+        },
+        t
+      );
+
       await Paiement.create(
         {
           commandeId: commande.id,
@@ -325,6 +339,16 @@ class CommandeService {
         )
       );
       await commande.update({ statut: STATUT_COMMANDE.ANNULEE }, { transaction: t });
+      await tracerMouvementsCommande(
+        {
+          commandeId: commande.id,
+          clientId: commande.userId,
+          evenement: 'annulation',
+          auteurId: userId,
+          lignes: commande.items.map((i) => ({ produitId: i.produitId, quantite: i.quantite })),
+        },
+        t
+      );
       await t.commit();
       return { success: true, message: 'Commande annulée avec succès', commande };
     } catch (err) {
@@ -333,7 +357,7 @@ class CommandeService {
     }
   }
 
-  static async rejeterCommande(commandeId, { motif } = {}) {
+  static async rejeterCommande(commandeId, { motif, auteurId = null } = {}) {
     const commande = await Commande.findByPk(commandeId, {
       include: [{ model: CommandeItem, as: 'items' }],
     });
@@ -375,6 +399,18 @@ class CommandeService {
             transaction: t,
           })
         )
+      );
+      // L'UPDATE conditionnel ci-dessus empêche déjà un double rejet ; la clé
+      // d'idempotence du mouvement couvre le reste (retry, reprise).
+      await tracerMouvementsCommande(
+        {
+          commandeId,
+          clientId: commande.userId,
+          evenement: 'rejet',
+          auteurId,
+          lignes: commande.items.map((i) => ({ produitId: i.produitId, quantite: i.quantite })),
+        },
+        t
       );
       await t.commit();
 

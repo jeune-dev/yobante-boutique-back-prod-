@@ -146,8 +146,8 @@ class GestionCommandeService {
    * en attente peut être rejetée ; elle passe en `rejetee`, le motif va dans
    * `motifRejet` (affiché au client par le mobile) et le stock est restauré.
    */
-  static async rejeterCommande(id, motif) {
-    const result = await CommandeService.rejeterCommande(id, { motif });
+  static async rejeterCommande(id, motif, auteurId = null) {
+    const result = await CommandeService.rejeterCommande(id, { motif, auteurId });
     if (!result.success) return result;
 
     const user = await User.findByPk(result.commande.userId, { attributes: ['email'] });

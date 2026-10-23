@@ -32,6 +32,7 @@ const Abonnement = require('./Abonnement.model');
 const PaiementAbonnement = require('./PaiementAbonnement.model');
 const AdminPasswordReset = require('./AdminPasswordReset.model');
 const PasswordResetToken = require('./PasswordResetToken.model');
+const MouvementStock = require('./MouvementStock.model');
 
 // ── User associations ──────────────────────────────────────────
 User.hasMany(Commande, { foreignKey: 'userId', as: 'commandes', onDelete: 'CASCADE' });
@@ -189,6 +190,30 @@ User.hasMany(PasswordResetToken, {
   onDelete: 'CASCADE',
 });
 
+// ── Mouvements de stock associations ───────────────────────────
+Produit.hasMany(MouvementStock, {
+  foreignKey: 'produitId',
+  as: 'mouvementsStock',
+  onDelete: 'CASCADE',
+});
+MouvementStock.belongsTo(Produit, { foreignKey: 'produitId', as: 'produit' });
+// L'historique doit survivre à la suppression de l'administrateur qui en est
+// l'auteur : on perd le nom, jamais la ligne.
+User.hasMany(MouvementStock, {
+  foreignKey: 'auteurId',
+  as: 'mouvementsStock',
+  onDelete: 'SET NULL',
+});
+MouvementStock.belongsTo(User, { foreignKey: 'auteurId', as: 'auteur' });
+// Commande et client à l'origine d'une sortie ou d'un retour en stock.
+Commande.hasMany(MouvementStock, {
+  foreignKey: 'commandeId',
+  as: 'mouvementsStock',
+  onDelete: 'SET NULL',
+});
+MouvementStock.belongsTo(Commande, { foreignKey: 'commandeId', as: 'commande' });
+MouvementStock.belongsTo(User, { foreignKey: 'clientId', as: 'client' });
+
 // ── Export all models ──────────────────────────────────────────
 module.exports = {
   sequelize,
@@ -221,4 +246,5 @@ module.exports = {
   PaiementAbonnement,
   AdminPasswordReset,
   PasswordResetToken,
+  MouvementStock,
 };

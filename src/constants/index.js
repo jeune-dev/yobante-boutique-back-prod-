@@ -58,6 +58,41 @@ const TYPE_OTP = Object.freeze({
   RESET_PASSWORD: 'reset_password',
 });
 
+// ── Mouvements de stock ───────────────────────────────────────
+// Nature du mouvement, telle qu'elle est présentée dans l'historique.
+// `AJUSTEMENT_NEUTRE` couvre l'ajustement manuel qui ne change pas la
+// quantité (l'administrateur ne fait que consigner une vérification).
+const TYPE_MOUVEMENT_STOCK = Object.freeze({
+  ENTREE: 'entree',
+  SORTIE: 'sortie',
+  AJUSTEMENT_POSITIF: 'ajustement_positif',
+  AJUSTEMENT_NEGATIF: 'ajustement_negatif',
+  AJUSTEMENT_NEUTRE: 'ajustement_neutre',
+  RETOUR: 'retour',
+});
+
+// D'où vient le mouvement. Volontairement une chaîne et non un ENUM :
+// instrumenter un nouveau chemin ne doit pas demander de migration de type.
+const SOURCE_MOUVEMENT_STOCK = Object.freeze({
+  AJUSTEMENT_ADMIN: 'ajustement_admin',
+  COMMANDE_CREATION: 'commande_creation',
+  COMMANDE_ANNULATION: 'commande_annulation',
+  COMMANDE_REJET: 'commande_rejet',
+});
+
+// Motifs proposés à l'administrateur pour un ajustement manuel. `AUTRE`
+// impose une précision libre — contrôlée côté serveur, pas seulement dans
+// le formulaire.
+const MOTIF_AJUSTEMENT_STOCK = Object.freeze({
+  REAPPROVISIONNEMENT: 'reapprovisionnement_fournisseur',
+  PRODUIT_ENDOMMAGE: 'produit_endommage',
+  PERTE_OU_CASSE: 'perte_ou_casse',
+  CORRECTION_INVENTAIRE: 'correction_inventaire',
+  ERREUR_COMPTAGE: 'erreur_comptage',
+  RETOUR_CLIENT: 'retour_client',
+  AUTRE: 'autre',
+});
+
 // Frais de livraison forfaitaire par défaut (fallback si aucun tarif configuré en DB)
 // Valeur en EUR — peut être surchargée par la table frais_livraisons
 const FRAIS_LIVRAISON_DEFAUT = Number(process.env.FRAIS_LIVRAISON_DEFAUT) || 15;
@@ -89,6 +124,9 @@ module.exports = {
   STATUT_VENDEUR,
   SECTION_PROMOTION,
   TYPE_OTP,
+  TYPE_MOUVEMENT_STOCK,
+  SOURCE_MOUVEMENT_STOCK,
+  MOTIF_AJUSTEMENT_STOCK,
   FRAIS_LIVRAISON_DEFAUT,
   PAGINATION,
   UPLOAD,
