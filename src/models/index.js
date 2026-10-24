@@ -33,6 +33,7 @@ const PaiementAbonnement = require('./PaiementAbonnement.model');
 const AdminPasswordReset = require('./AdminPasswordReset.model');
 const PasswordResetToken = require('./PasswordResetToken.model');
 const Retour = require('./Retour.model');
+const MouvementStock = require('./MouvementStock.model');
 const Reversement = require('./Reversement.model');
 const AcceptationCommande = require('./AcceptationCommande.model');
 
@@ -212,6 +213,35 @@ Retour.belongsTo(User, { foreignKey: 'traitePar', as: 'traiteur' });
 Commande.belongsTo(User, { foreignKey: 'vendeurResponsableId', as: 'vendeurResponsable' });
 Commande.belongsTo(User, { foreignKey: 'modifieePar', as: 'modificateur' });
 
+// ── Mouvements de stock associations ───────────────────────────
+// Le journal survit à la disparition de ce qui l'a provoqué : la trace d'une
+// sortie reste lisible même si la commande a été purgée.
+Produit.hasMany(MouvementStock, {
+  foreignKey: 'produitId',
+  as: 'mouvementsStock',
+  onDelete: 'CASCADE',
+});
+MouvementStock.belongsTo(Produit, { foreignKey: 'produitId', as: 'produit' });
+User.hasMany(MouvementStock, {
+  foreignKey: 'auteurId',
+  as: 'mouvementsStock',
+  onDelete: 'SET NULL',
+});
+MouvementStock.belongsTo(User, { foreignKey: 'auteurId', as: 'auteur' });
+MouvementStock.belongsTo(User, { foreignKey: 'clientId', as: 'client' });
+Commande.hasMany(MouvementStock, {
+  foreignKey: 'commandeId',
+  as: 'mouvementsStock',
+  onDelete: 'SET NULL',
+});
+MouvementStock.belongsTo(Commande, { foreignKey: 'commandeId', as: 'commande' });
+Retour.hasMany(MouvementStock, {
+  foreignKey: 'retourId',
+  as: 'mouvementsStock',
+  onDelete: 'SET NULL',
+});
+MouvementStock.belongsTo(Retour, { foreignKey: 'retourId', as: 'retour' });
+
 // ── Reversement associations ───────────────────────────────────
 User.hasMany(Reversement, { foreignKey: 'vendeurId', as: 'reversements', onDelete: 'CASCADE' });
 Reversement.belongsTo(User, { foreignKey: 'vendeurId', as: 'vendeur' });
@@ -264,6 +294,7 @@ module.exports = {
   AdminPasswordReset,
   PasswordResetToken,
   Retour,
+  MouvementStock,
   Reversement,
   AcceptationCommande,
 };

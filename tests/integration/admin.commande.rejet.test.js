@@ -19,6 +19,7 @@ jest.mock('../../src/models', () => {
     findAndCountAll: jest.fn(async () => ({ rows: [], count: 0 })), count: jest.fn(async () => 0),
     create: jest.fn(), update: jest.fn(), destroy: jest.fn(), increment: jest.fn(async () => null),
     sum: jest.fn(async () => 0), max: jest.fn(async () => 0),
+    bulkCreate: jest.fn(async () => []),
   });
   const transaction = { commit: jest.fn(), rollback: jest.fn() };
   return {
@@ -27,6 +28,7 @@ jest.mock('../../src/models', () => {
     Promotion: stub(), Avis: stub(), Paiement: stub(), FraisLivraison: stub(), RefreshToken: stub(),
     UserOtp: stub(), Adresse: stub(), Notification: stub(), DeviceToken: stub(), Message: stub(),
     Favori: stub(), Panier: stub(), BanniereProduit: stub(), DemandeSuppressionCompte: stub(),
+    MouvementStock: stub(), Retour: stub(), AcceptationCommande: stub(),
     sequelize: { transaction: jest.fn(async () => transaction), query: jest.fn(async () => []), literal: jest.fn(), fn: jest.fn(), col: jest.fn(), QueryTypes: { SELECT: 'SELECT' } },
   };
 });
@@ -37,7 +39,7 @@ jest.mock('../../src/utils/mailer', () => ({
 }));
 jest.mock('../../src/services/resend.service', () => ({ sendEmail: jest.fn(), FROM: 'test' }));
 
-const { User, Commande, Produit, sequelize } = require('../../src/models');
+const { User, Commande, Produit, MouvementStock, sequelize } = require('../../src/models');
 const { sendCommandeStatut } = require('../../src/utils/mailer');
 const cache = require('../../src/config/cache');
 const app = require('../../src/app');
@@ -69,6 +71,12 @@ describe('PATCH /api/v1/admin/commandes/:id/rejeter', () => {
     transaction = { commit: jest.fn(), rollback: jest.fn() };
     sequelize.transaction.mockResolvedValue(transaction);
     Produit.increment.mockResolvedValue(null);
+    // Stock relu APRÈS restauration, pour le journal des mouvements.
+    Produit.findAll.mockResolvedValue([
+      { id: ID.PA, stock: 13 },
+      { id: ID.PB, stock: 6 },
+    ]);
+    MouvementStock.bulkCreate.mockResolvedValue([]);
     sendCommandeStatut.mockResolvedValue(null);
     commande = {
       id: ID.COMMANDE,
@@ -129,6 +137,40 @@ describe('PATCH /api/v1/admin/commandes/:id/rejeter', () => {
     expect(res.status).toBe(200);
     expect(commande).toMatchObject({ statut: 'rejetee', motifRejet: 'Client injoignable' });
     expect(Produit.increment).toHaveBeenCalledTimes(2);
+  });
+
+  it('trace une entrée de stock par ligne, dans la transaction, signée par l’admin', async () => {
+    const res = await rejeter({ motif: 'Stock insuffisant' });
+
+    expect(res.status).toBe(200);
+    const [lignes, options] = MouvementStock.bulkCreate.mock.calls[0];
+    expect(options).toEqual({ transaction, ignoreDuplicates: true });
+    expect(lignes).toEqual([
+      expect.objectContaining({
+        produitId: ID.PA,
+        type: 'entree',
+        source: 'commande_rejet',
+        ancienneQuantite: 10,
+        nouvelleQuantite: 13,
+        difference: 3,
+        auteurId: ID.ADMIN,
+        clientId: ID.CLIENT,
+        commandeId: ID.COMMANDE,
+        cleIdempotence: `commande:${ID.COMMANDE}:rejet:${ID.PA}`,
+      }),
+      expect.objectContaining({ produitId: ID.PB, difference: 1, nouvelleQuantite: 6 }),
+    ]);
+  });
+
+  it('commande rejetée deux fois : la seconde ne trace aucun mouvement', async () => {
+    await rejeter({ motif: 'Stock insuffisant' });
+    MouvementStock.bulkCreate.mockClear();
+
+    // La commande est désormais « rejetee » : l'UPDATE conditionnel ne passe plus.
+    const res = await rejeter({ motif: 'Stock insuffisant' });
+
+    expect(res.status).toBe(400);
+    expect(MouvementStock.bulkCreate).not.toHaveBeenCalled();
   });
 
   it('{ raison } (ancien nom) reste accepté comme alias de motif', async () => {

@@ -102,6 +102,45 @@ const SEUILS_STOCK = Object.freeze({
 // Nombre de jours de ventes servant à calculer la couverture de stock.
 const FENETRE_COUVERTURE_JOURS = Number(process.env.FENETRE_COUVERTURE_JOURS) || 30;
 
+// ── Journal des mouvements de stock ────────────────────────────
+// Nature du mouvement, telle qu'elle est présentée dans l'historique.
+// `AJUSTEMENT_NEUTRE` couvre l'ajustement manuel qui ne change pas la
+// quantité : l'administrateur consigne une vérification sans écart.
+const TYPE_MOUVEMENT_STOCK = Object.freeze({
+  ENTREE: 'entree',
+  SORTIE: 'sortie',
+  AJUSTEMENT_POSITIF: 'ajustement_positif',
+  AJUSTEMENT_NEGATIF: 'ajustement_negatif',
+  AJUSTEMENT_NEUTRE: 'ajustement_neutre',
+  RETOUR: 'retour',
+});
+
+// D'où vient le mouvement. Volontairement une chaîne et non un ENUM :
+// instrumenter un nouveau chemin ne doit pas demander de migration de type.
+const SOURCE_MOUVEMENT_STOCK = Object.freeze({
+  AJUSTEMENT_ADMIN: 'ajustement_admin',
+  COMMANDE_CREATION: 'commande_creation',
+  COMMANDE_ANNULATION: 'commande_annulation',
+  COMMANDE_REJET: 'commande_rejet',
+  COMMANDE_MODIFICATION: 'commande_modification',
+  COMMANDE_RUPTURE: 'commande_rupture',
+  RETOUR_REMISE_EN_STOCK: 'retour_remise_en_stock',
+  RETOUR_CORRECTION: 'retour_correction',
+});
+
+// Motifs proposés à l'administration pour un ajustement manuel. `AUTRE`
+// impose une précision libre, contrôlée côté serveur et pas seulement dans
+// le formulaire.
+const MOTIF_AJUSTEMENT_STOCK = Object.freeze({
+  REAPPROVISIONNEMENT: 'reapprovisionnement_fournisseur',
+  PRODUIT_ENDOMMAGE: 'produit_endommage',
+  PERTE_OU_CASSE: 'perte_ou_casse',
+  CORRECTION_INVENTAIRE: 'correction_inventaire',
+  ERREUR_COMPTAGE: 'erreur_comptage',
+  RETOUR_CLIENT: 'retour_client',
+  AUTRE: 'autre',
+});
+
 // Qui est à l'origine d'une modification ou d'une annulation de commande.
 const ORIGINE_ACTION = Object.freeze({
   CLIENT: 'client',
@@ -161,6 +200,9 @@ module.exports = {
   NIVEAU_STOCK,
   SEUILS_STOCK,
   FENETRE_COUVERTURE_JOURS,
+  TYPE_MOUVEMENT_STOCK,
+  SOURCE_MOUVEMENT_STOCK,
+  MOTIF_AJUSTEMENT_STOCK,
   ORIGINE_ACTION,
   RESPONSABILITE,
   MOTIF_RETOUR,

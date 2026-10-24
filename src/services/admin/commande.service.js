@@ -21,9 +21,11 @@ const {
   ORIGINE_ACTION,
   RESPONSABILITE,
   STATUT_RETOUR,
+  SOURCE_MOUVEMENT_STOCK,
 } = require('../../constants');
 const CommandeService = require('../client/commande.service');
 const NotificationService = require('../notification');
+const { tracerMouvements, tracerMouvementsCommande } = require('../mouvementStock.service');
 const logger = require('../../config/logger');
 
 // La liste n'affiche que ces champs du produit : inutile de charger toute la
@@ -338,8 +340,8 @@ class GestionCommandeService {
    * en attente peut être rejetée ; elle passe en `rejetee`, le motif va dans
    * `motifRejet` (affiché au client par le mobile) et le stock est restauré.
    */
-  static async rejeterCommande(id, motif) {
-    const result = await CommandeService.rejeterCommande(id, { motif });
+  static async rejeterCommande(id, motif, auteurId = null) {
+    const result = await CommandeService.rejeterCommande(id, { motif, auteurId });
     if (!result.success) return result;
 
     // Client prévenu par tous les canaux, avec le motif.
@@ -472,6 +474,18 @@ class GestionCommandeService {
           })
         )
       );
+      await tracerMouvementsCommande(
+        {
+          commandeId: id,
+          clientId: commande.userId,
+          source: SOURCE_MOUVEMENT_STOCK.COMMANDE_ANNULATION,
+          sens: 1,
+          evenement: 'annulation',
+          auteurId: adminId,
+          lignes: commande.items.map((i) => ({ produitId: i.produitId, quantite: i.quantite })),
+        },
+        transaction
+      );
       await transaction.commit();
     } catch (err) {
       await transaction.rollback();
@@ -541,6 +555,9 @@ class GestionCommandeService {
     }
 
     const changements = [];
+    // Écarts de stock de cette modification, tracés en une fois à la fin,
+    // dans la même transaction que les incréments.
+    const ecartsStock = [];
     const transaction = await sequelize.transaction();
     try {
       if (Array.isArray(items) && items.length) {
@@ -584,6 +601,7 @@ class GestionCommandeService {
               where: { id: produitId },
               transaction,
             });
+            ecartsStock.push({ produitId, difference: Number(ligne.quantite) });
             changements.push({
               champ: 'ligne_retiree',
               produitId,
@@ -612,6 +630,7 @@ class GestionCommandeService {
               where: { id: ligne.produitId },
               transaction,
             });
+            ecartsStock.push({ produitId: ligne.produitId, difference: -delta });
             changements.push({
               champ: 'quantite',
               produitId: ligne.produitId,
@@ -699,6 +718,21 @@ class GestionCommandeService {
         { transaction }
       );
 
+      // Pas de clé d'idempotence : une commande peut être retouchée plusieurs
+      // fois sur le même article, et chaque retouche est un acte distinct.
+      // Une clé figée avalerait silencieusement la deuxième.
+      await tracerMouvements(
+        {
+          source: SOURCE_MOUVEMENT_STOCK.COMMANDE_MODIFICATION,
+          auteurId: adminId || null,
+          commandeId: id,
+          clientId: commande.userId,
+          commentaire: motif.trim(),
+          lignes: ecartsStock,
+        },
+        transaction
+      );
+
       await transaction.commit();
     } catch (err) {
       await transaction.rollback();
@@ -773,6 +807,15 @@ class GestionCommandeService {
     const maintenant = new Date();
     const transaction = await sequelize.transaction();
     try {
+      // Quantités d'avant relevées AVANT la mise à zéro : après, la base ne
+      // sait plus de combien on est parti.
+      const avantRupture = await Produit.findAll({
+        where: { id: nouvelles.map((l) => l.produitId) },
+        attributes: ['id', 'stock'],
+        transaction,
+      });
+      const stockAvant = new Map(avantRupture.map((p) => [p.id, Number(p.stock) || 0]));
+
       for (const ligne of nouvelles) {
         await ligne.update(
           { enRupture: true, motifRupture: raison, ruptureLe: maintenant },
@@ -781,6 +824,24 @@ class GestionCommandeService {
         // Rupture de stock : le produit n'est plus commandable.
         await Produit.update({ stock: 0 }, { where: { id: ligne.produitId }, transaction });
       }
+
+      await tracerMouvements(
+        {
+          source: SOURCE_MOUVEMENT_STOCK.COMMANDE_RUPTURE,
+          auteurId: adminId || null,
+          commandeId: id,
+          clientId: commande.userId,
+          commentaire: raison,
+          lignes: nouvelles.map((l) => ({
+            produitId: l.produitId,
+            difference: -(stockAvant.get(l.produitId) ?? 0),
+          })),
+          // `enRupture` ne repasse jamais à faux : une ligne déjà en rupture
+          // est écartée plus haut. La clé protège donc du seul double envoi.
+          cle: (l) => `commande:${id}:rupture:${l.produitId}`,
+        },
+        transaction
+      );
 
       // Le client ne paie que ce qui sera livré. Plus rien à livrer : plus de
       // frais de livraison non plus.
