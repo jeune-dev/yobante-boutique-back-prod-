@@ -107,7 +107,8 @@ exports.valider = asyncHandler(async (req, res) => {
 
 exports.rejeter = asyncHandler(async (req, res) => {
   const motif = req.body.motif ?? req.body.raison;
-  const result = await GestionCommandeService.rejeterCommande(req.params.id, motif);
+  // L'auteur du mouvement de stock vient du jeton, jamais du corps.
+  const result = await GestionCommandeService.rejeterCommande(req.params.id, motif, req.user?.id);
   if (!result.success) {
     if (result.status === 404) throw new NotFoundError(result.message);
     throw new BadRequestError(result.message);

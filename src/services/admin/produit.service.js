@@ -1,5 +1,16 @@
 const { Op } = require('sequelize');
-const { Produit, User, Rayon, SousRayon, ProfilVendeur, sequelize } = require('../../models');
+const {
+  Produit,
+  User,
+  Rayon,
+  SousRayon,
+  ProfilVendeur,
+  MouvementStock,
+  Commande,
+  CommandeItem,
+  Retour,
+  sequelize,
+} = require('../../models');
 const { generateUniqueSlug } = require('../../utils/slugify');
 const paginate = require('../../utils/paginate');
 const logger = require('../../config/logger');
@@ -10,9 +21,56 @@ const {
   STATUT_COMMANDE,
   STATUT_RETOUR,
   FENETRE_COUVERTURE_JOURS,
+  TYPE_MOUVEMENT_STOCK,
 } = require('../../constants');
 const { niveauDeStock, joursDeCouverture } = require('../../utils/niveauStock');
 const NotificationService = require('../notification');
+const { tracerAjustementManuel } = require('../mouvementStock.service');
+
+/** Début du jour d'une date de filtre (`null` si absente ou illisible). */
+function _jourDebut(valeur) {
+  if (!valeur) return null;
+  const d = new Date(valeur);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/** Fin du jour d'une date de filtre : la borne haute reste inclusive. */
+function _jourFin(valeur) {
+  if (!valeur) return null;
+  const d = new Date(valeur);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+/**
+ * Totaux de l'en-tête de fiche, agrégés par type de mouvement.
+ *
+ * Les sorties et les ajustements négatifs sont rendus en valeur absolue :
+ * « 12 sorties » se lit mieux que « −12 ». Les retours comptent avec les
+ * entrées : dans les deux cas de la marchandise revient en stock.
+ *
+ * Le nombre de commandes vient des lignes de commande (compte distinct), pas
+ * des mouvements : une commande créée puis annulée produit deux mouvements
+ * mais ne doit compter qu'une fois.
+ */
+function _construireIndicateursStock(produit, totauxParType, nombreCommandes) {
+  const somme = (type) => {
+    const ligne = totauxParType.find((t) => t.type === type);
+    return ligne ? Number(ligne.somme) || 0 : 0;
+  };
+
+  return {
+    stockActuel: Number(produit.stock) || 0,
+    totalEntrees: somme(TYPE_MOUVEMENT_STOCK.ENTREE) + somme(TYPE_MOUVEMENT_STOCK.RETOUR),
+    totalSorties: Math.abs(somme(TYPE_MOUVEMENT_STOCK.SORTIE)),
+    totalAjustementsPositifs: somme(TYPE_MOUVEMENT_STOCK.AJUSTEMENT_POSITIF),
+    totalAjustementsNegatifs: Math.abs(somme(TYPE_MOUVEMENT_STOCK.AJUSTEMENT_NEGATIF)),
+    nombreCommandes: Number(nombreCommandes) || 0,
+  };
+}
 
 /**
  * Notifie le vendeur par email. N'échoue jamais : la décision sur le produit
@@ -362,11 +420,226 @@ class GestionProduitService {
     };
   }
 
-  static async updateStock(id, quantite) {
-    const produit = await Produit.findByPk(id);
+  /**
+   * Ajustement manuel du stock par l'administration.
+   *
+   * `quantite` est la quantité ABSOLUE visée — la convention que l'endpoint
+   * portait déjà ; l'écart est calculé pour l'historique plutôt que saisi.
+   * C'est aussi ce qu'un inventaire donne : on compte ce qui reste, pas la
+   * différence. `stockAlloue` n'est pas touché : c'est une demande du vendeur,
+   * indépendante du stock réellement ouvert à la vente.
+   *
+   * La mise à jour et l'écriture du mouvement partagent une transaction, et
+   * la ligne produit est verrouillée (`lock: true`) le temps de l'opération :
+   * deux ajustements simultanés ne peuvent pas produire un historique dont la
+   * quantité d'avant ne correspond à rien.
+   */
+  static async updateStock(id, { quantite, motif, commentaire, auteurId } = {}) {
+    return await sequelize.transaction(async (t) => {
+      const produit = await Produit.findByPk(id, { transaction: t, lock: true });
+      if (!produit) return { success: false, message: 'Produit introuvable' };
+
+      const ancienneQuantite = Number(produit.stock) || 0;
+      const nouvelleQuantite = Number(quantite);
+
+      await produit.update({ stock: nouvelleQuantite }, { transaction: t });
+
+      const mouvement = await tracerAjustementManuel(
+        {
+          produitId: produit.id,
+          ancienneQuantite,
+          nouvelleQuantite,
+          motif,
+          commentaire: commentaire ? String(commentaire).trim() : null,
+          auteurId: auteurId || null,
+        },
+        t
+      );
+
+      return { success: true, message: 'Stock mis à jour avec succès', produit, mouvement };
+    });
+  }
+
+  /**
+   * Historique des mouvements de stock d'un produit, du plus récent au plus
+   * ancien, filtré et paginé CÔTÉ SERVEUR.
+   *
+   * Les filtres portant sur une table jointe (numéro de commande, nom du
+   * client) sont d'abord résolus en listes d'identifiants : la requête de
+   * liste comme celle des totaux travaillent ensuite sur un `WHERE` qui ne
+   * touche que `mouvements_stock`, ce qui garde les totaux exacts et les
+   * index utilisables.
+   *
+   * Les totaux portent sur TOUT l'ensemble filtré, pas sur la page affichée.
+   */
+  static async getMouvementsStock(id, filtres = {}) {
+    const produit = await Produit.scope('administration').findByPk(id, {
+      attributes: ['id', 'nom', 'stock', 'stockAlloue', 'reference'],
+    });
     if (!produit) return { success: false, message: 'Produit introuvable' };
-    await produit.update({ stock: quantite });
-    return { success: true, message: 'Stock mis à jour avec succès', produit };
+
+    const { page, limit, dateDebut, dateFin, type, source, auteurId, motif, clientId, search } =
+      filtres;
+    const { page: p, limit: l, offset } = paginate(page, limit);
+
+    const where = { produitId: id };
+
+    const debut = _jourDebut(dateDebut);
+    const fin = _jourFin(dateFin);
+    if (debut || fin) {
+      where.createdAt = {};
+      if (debut) where.createdAt[Op.gte] = debut;
+      if (fin) where.createdAt[Op.lte] = fin;
+    }
+
+    if (type && Object.values(TYPE_MOUVEMENT_STOCK).includes(type)) where.type = type;
+    if (source) where.source = source;
+    if (auteurId) where.auteurId = auteurId;
+    if (motif) where.motif = motif;
+    if (clientId) where.clientId = clientId;
+
+    // Recherche libre : numéro de commande OU nom / prénom du client. Les
+    // identifiants sont résolus d'abord, pour ne pas avoir à joindre dans la
+    // requête d'agrégation.
+    const terme = typeof search === 'string' ? search.trim() : '';
+    if (terme) {
+      const [commandes, clients] = await Promise.all([
+        Commande.findAll({
+          where: { reference: { [Op.iLike]: `%${terme}%` } },
+          attributes: ['id'],
+          limit: 500,
+        }),
+        User.findAll({
+          where: {
+            [Op.or]: [
+              { nom: { [Op.iLike]: `%${terme}%` } },
+              { prenom: { [Op.iLike]: `%${terme}%` } },
+            ],
+          },
+          attributes: ['id'],
+          limit: 500,
+        }),
+      ]);
+      where[Op.or] = [
+        { commandeId: { [Op.in]: commandes.map((c) => c.id) } },
+        { clientId: { [Op.in]: clients.map((u) => u.id) } },
+      ];
+    }
+
+    const [{ count, rows }, totaux, nombreCommandes] = await Promise.all([
+      MouvementStock.findAndCountAll({
+        where,
+        include: [
+          {
+            model: User,
+            as: 'auteur',
+            attributes: ['id', 'nom', 'prenom', 'email', 'role'],
+            required: false,
+          },
+          {
+            model: User,
+            as: 'client',
+            attributes: ['id', 'nom', 'prenom', 'email'],
+            required: false,
+          },
+          {
+            model: Commande,
+            as: 'commande',
+            attributes: ['id', 'reference', 'statut'],
+            required: false,
+          },
+          { model: Retour, as: 'retour', attributes: ['id', 'statut'], required: false },
+        ],
+        order: [['createdAt', 'DESC']],
+        limit: l,
+        offset,
+      }),
+      MouvementStock.findAll({
+        where,
+        attributes: [
+          'type',
+          [sequelize.fn('SUM', sequelize.col('difference')), 'somme'],
+          [sequelize.fn('COUNT', sequelize.col('id')), 'nombre'],
+        ],
+        group: ['type'],
+        raw: true,
+      }),
+      GestionProduitService._compterCommandes(id, debut, fin),
+    ]);
+
+    return {
+      success: true,
+      message: 'Historique des mouvements de stock',
+      produit,
+      mouvements: rows,
+      indicateurs: _construireIndicateursStock(produit, totaux, nombreCommandes),
+      periode: { dateDebut: debut, dateFin: fin },
+      pagination: { total: count, totalPages: Math.ceil(count / l), page: p, limit: l },
+    };
+  }
+
+  /**
+   * Nombre de commandes DISTINCTES contenant le produit. Compté sur les lignes
+   * de commande, pas sur les mouvements : une commande créée puis annulée
+   * produit deux mouvements mais reste une seule commande.
+   */
+  static async _compterCommandes(produitId, debut, fin) {
+    const where = {};
+    if (debut || fin) {
+      where.createdAt = {};
+      if (debut) where.createdAt[Op.gte] = debut;
+      if (fin) where.createdAt[Op.lte] = fin;
+    }
+    return await CommandeItem.count({
+      distinct: true,
+      col: 'commandeId',
+      where: { produitId },
+      include: [{ model: Commande, as: 'commande', attributes: [], where, required: true }],
+    });
+  }
+
+  /**
+   * Commandes contenant le produit. Le prix unitaire et le sous-total sont
+   * ceux figés dans la ligne de commande au moment de l'achat — jamais
+   * recalculés depuis le prix courant, qui a pu changer depuis.
+   */
+  static async getCommandesDuProduit(id, { page, limit } = {}) {
+    const produit = await Produit.scope('administration').findByPk(id, {
+      attributes: ['id', 'nom'],
+    });
+    if (!produit) return { success: false, message: 'Produit introuvable' };
+
+    const { page: p, limit: l, offset } = paginate(page, limit);
+    const { count, rows } = await CommandeItem.findAndCountAll({
+      where: { produitId: id },
+      include: [
+        {
+          model: Commande,
+          as: 'commande',
+          attributes: ['id', 'reference', 'statut', 'createdAt'],
+          required: true,
+          include: [
+            {
+              model: User,
+              as: 'user',
+              attributes: ['id', 'nom', 'prenom', 'email'],
+              required: false,
+            },
+          ],
+        },
+      ],
+      order: [[{ model: Commande, as: 'commande' }, 'createdAt', 'DESC']],
+      limit: l,
+      offset,
+      distinct: true,
+    });
+
+    return {
+      success: true,
+      message: 'Commandes contenant le produit',
+      lignes: rows,
+      pagination: { total: count, totalPages: Math.ceil(count / l), page: p, limit: l },
+    };
   }
 
   static async toggleFeatured(id) {

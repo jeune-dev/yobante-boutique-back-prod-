@@ -36,9 +36,37 @@ exports.remove = asyncHandler(async (req, res) => {
 });
 
 exports.updateStock = asyncHandler(async (req, res) => {
-  const result = await GestionProduitService.updateStock(req.params.id, req.body.quantite);
+  // L'auteur vient du jeton vérifié par `adminMiddleware`, jamais du corps :
+  // l'historique ne doit pas pouvoir être signé au nom d'un autre compte.
+  const result = await GestionProduitService.updateStock(req.params.id, {
+    quantite: req.body.quantite,
+    motif: req.body.motif,
+    commentaire: req.body.commentaire,
+    auteurId: req.user && req.user.id,
+  });
   if (!result.success) throw new NotFoundError(result.message);
-  return ok(res, { produit: result.produit }, result.message);
+  return ok(res, { produit: result.produit, mouvement: result.mouvement }, result.message);
+});
+
+exports.getMouvementsStock = asyncHandler(async (req, res) => {
+  const result = await GestionProduitService.getMouvementsStock(req.params.id, req.query);
+  if (!result.success) throw new NotFoundError(result.message);
+  return ok(
+    res,
+    {
+      mouvements: result.mouvements,
+      indicateurs: result.indicateurs,
+      periode: result.periode,
+      pagination: result.pagination,
+    },
+    result.message
+  );
+});
+
+exports.getCommandesDuProduit = asyncHandler(async (req, res) => {
+  const result = await GestionProduitService.getCommandesDuProduit(req.params.id, req.query);
+  if (!result.success) throw new NotFoundError(result.message);
+  return ok(res, { lignes: result.lignes, pagination: result.pagination }, result.message);
 });
 
 exports.toggleFeatured = asyncHandler(async (req, res) => {

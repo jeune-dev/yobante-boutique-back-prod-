@@ -3,6 +3,7 @@ const { Retour, Commande, CommandeItem, Produit, User, sequelize } = require('..
 const paginate = require('../../utils/paginate');
 const logger = require('../../config/logger');
 const { MOTIF_RETOUR, STATUT_RETOUR, STATUT_COMMANDE, RESPONSABILITE } = require('../../constants');
+const { tracerMouvementRetour } = require('../mouvementStock.service');
 
 /**
  * Retours produits côté administration.
@@ -136,6 +137,12 @@ class RetourService {
         if (produit) {
           const delta = doitRemettreEnStock ? retour.quantite : -retour.quantite;
           await produit.increment('stock', { by: delta, transaction });
+          // Journal du stock, dans la même transaction que l'incrément : le
+          // retour est le seul chemin où le stock bouge après la livraison.
+          await tracerMouvementRetour(
+            { retour, remiseEnStock: doitRemettreEnStock, auteurId: adminId || null },
+            transaction
+          );
         } else {
           logger.warn('[Retour] Produit absent, stock non ajusté', { retourId: id });
         }

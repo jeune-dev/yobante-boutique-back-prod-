@@ -18,11 +18,20 @@ let commande;
 const mockModels = {
   Commande: { scope: () => ({ findByPk: jest.fn(async () => commande) }) },
   CommandeItem: {},
-  Produit: { update: jest.fn() },
+  // `findAll` sert au journal du stock : relecture des quantités d'avant.
+  Produit: {
+    update: jest.fn(),
+    findAll: jest.fn(async () => [
+      { id: 'p1', stock: 4 },
+      { id: 'p2', stock: 7 },
+    ]),
+  },
+  MouvementStock: { bulkCreate: jest.fn(async () => []) },
   User: {},
   Adresse: {},
   Paiement: {},
   AcceptationCommande: {},
+  Retour: {},
   sequelize: { transaction: async () => ({ commit: jest.fn(), rollback: jest.fn() }) },
 };
 jest.mock('../../../src/models', () => mockModels);
@@ -38,6 +47,13 @@ const Service = require('../../../src/services/admin/commande.service');
 
 beforeEach(() => {
   jest.clearAllMocks();
+  // `resetMocks` de jest.config efface les implémentations de la fabrique :
+  // on réarme celles dont le service a besoin.
+  mockModels.Produit.findAll.mockResolvedValue([
+    { id: 'p1', stock: 4 },
+    { id: 'p2', stock: 7 },
+  ]);
+  mockModels.MouvementStock.bulkCreate.mockResolvedValue([]);
   commande = {
     id: 'c1',
     reference: 'CMD-1',
@@ -82,6 +98,28 @@ test('tout en rupture : montant nul et annulation suggérée', async () => {
   const r = await Service.marquerRupture('c1', { produitIds: ['p1', 'p2'], motif: 'Rupture totale' });
   expect(commande.montantTotal).toBe(0);
   expect(r.toutEnRupture).toBe(true);
+});
+
+test('la mise à zéro est tracée au journal du stock', async () => {
+  await Service.marquerRupture('c1', {
+    produitIds: ['p1'],
+    motif: 'Plus en stock chez le vendeur',
+    adminId: 'admin-1',
+  });
+
+  const [lignes, options] = mockModels.MouvementStock.bulkCreate.mock.calls[0];
+  expect(options).toMatchObject({ ignoreDuplicates: true });
+  expect(lignes).toEqual([
+    expect.objectContaining({
+      produitId: 'p1',
+      type: 'ajustement_negatif',
+      source: 'commande_rupture',
+      difference: -4,
+      auteurId: 'admin-1',
+      commentaire: 'Plus en stock chez le vendeur',
+      cleIdempotence: 'commande:c1:rupture:p1',
+    }),
+  ]);
 });
 
 test('commande livrée : refus', async () => {
